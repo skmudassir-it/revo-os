@@ -1,0 +1,2 @@
+::sysinit:/etc/init.d/rcS
+tty1::respawn:/sbin/getty 38400 tty1

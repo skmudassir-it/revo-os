@@ -1,0 +1,63 @@
+#!/bin/busybox sh
+# Revo OS init script
+# Ultra-minimal Linux boot — drops to shell with essential services
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs devtmpfs /dev
+
+# Mount EFI partition for kernel modules
+mkdir -p /boot
+mount -t vfat /dev/sda1 /boot 2>/dev/null || true
+mount -t vfat /dev/nvme0n1p1 /boot 2>/dev/null || true
+mount -t vfat /dev/vda1 /boot 2>/dev/null || true
+
+echo ""
+echo "  ╔══════════════════════════════════════╗"
+echo "  ║        🌀 REVO OS v0.1.0            ║"
+echo "  ║  The 10-Megabyte Operating System    ║"
+echo "  ╚══════════════════════════════════════╝"
+echo ""
+echo "  Kernel : $(uname -r)"
+echo "  Arch   : $(uname -m)"
+echo "  CPU    : $(grep -c processor /proc/cpuinfo) cores"
+echo "  RAM    : $(awk '/MemTotal/{printf "%.0f", $2/1024}' /proc/meminfo) MB"
+echo ""
+
+# Load essential modules from /boot/modules
+MODDIR="/boot/modules"
+if [ -d "$MODDIR" ]; then
+    echo "  [--] Loading kernel modules..."
+    for mod in ext4 overlay vfat loop virtio_blk virtio_net; do
+        if [ -f "$MODDIR/${mod}.ko.gz" ]; then
+            insmod "$MODDIR/${mod}.ko.gz" 2>/dev/null && echo "  [OK] $mod"
+        fi
+    done
+fi
+
+# Mount persistent storage
+DATA_OK=0
+mkdir -p /revo
+for dev in /dev/sda2 /dev/sda3 /dev/nvme0n1p2 /dev/nvme0n1p3 /dev/vda2 /dev/vda3; do
+    if [ -b "$dev" ] && mount -t ext4 "$dev" /revo 2>/dev/null; then
+        echo "  [OK] Revo volume: $dev -> /revo"
+        DATA_OK=1
+        break
+    fi
+done
+[ "$DATA_OK" -eq 0 ] && echo "  [!!] No Revo volume found (memory-only mode)"
+
+# Network
+hostname revo
+ip link set lo up 2>/dev/null
+if ip link set eth0 up 2>/dev/null; then
+    udhcpc -q -t 3 -n -i eth0 2>/dev/null && echo "  [OK] eth0: DHCP" || echo "  [--] eth0: no DHCP"
+fi
+
+echo ""
+echo "  ┌─────────────────────────────────────────┐"
+echo "  │  Revo ready. Type 'help' for commands.  │"
+echo "  └─────────────────────────────────────────┘"
+echo ""
+
+exec /bin/sh
