@@ -1,6 +1,6 @@
 #!/bin/busybox sh
-# Revo OS init script
-# Ultra-minimal Linux boot — drops to shell with essential services
+# Revo OS v0.2.0 init script
+# Ultra-minimal Linux boot — Docker built-in via containerd + runc
 
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -14,8 +14,8 @@ mount -t vfat /dev/vda1 /boot 2>/dev/null || true
 
 echo ""
 echo "  ╔══════════════════════════════════════╗"
-echo "  ║        🌀 REVO OS v0.1.0            ║"
-echo "  ║  The 10-Megabyte Operating System    ║"
+echo "  ║        🌀 REVO OS v0.2.0            ║"
+echo "  ║  The 15-Megabyte OS — Docker Inside  ║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
 echo "  Kernel : $(uname -r)"
@@ -54,9 +54,28 @@ if ip link set eth0 up 2>/dev/null; then
     udhcpc -q -t 3 -n -i eth0 2>/dev/null && echo "  [OK] eth0: DHCP" || echo "  [--] eth0: no DHCP"
 fi
 
+# Start containerd
+echo ""
+echo "  [--] Starting containerd (Docker runtime)..."
+if [ -x /bin/containerd ] && [ -x /bin/runc ]; then
+    mkdir -p /run/containerd
+    containerd &
+    CONTAINERD_PID=$!
+    sleep 1
+    if kill -0 "$CONTAINERD_PID" 2>/dev/null; then
+        echo "  [OK] containerd running (PID $CONTAINERD_PID)"
+        echo "  [OK] revocker ready — use 'docker' commands"
+    else
+        echo "  [!!] containerd failed to start"
+    fi
+else
+    echo "  [--] containerd/runc binaries not found"
+fi
+
 echo ""
 echo "  ┌─────────────────────────────────────────┐"
 echo "  │  Revo ready. Type 'help' for commands.  │"
+echo "  │  Docker built-in — try 'docker ps'      │"
 echo "  └─────────────────────────────────────────┘"
 echo ""
 

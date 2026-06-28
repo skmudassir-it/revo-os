@@ -1,6 +1,6 @@
 # Revo OS — Architecture
 
-**Version:** 0.1.0 · **Author:** Mudassir · **June 2026**
+**Version:** 0.2.0 · **Author:** Mudassir · **June 2026**
 
 ---
 
@@ -19,20 +19,23 @@ Revo OS is organized into three distinct layers, each with a well-defined bounda
 │  └──────────────────────────────────────────────────────┘    │
 │                                                              │
 │  ┌──────────────────────────────────────────────────────┐    │
-│  │  /init (shell script, 2.3 KB)                        │    │
-│  │  -> mounts proc/sys/devtmpfs                         │    │
-│  │  -> mounts EFI partition (vfat)                      │    │
-│  │  -> loads kernel modules via insmod                  │    │
-│  │  -> mounts Revo data volume (ext4)                   │    │
-│  │  -> configures network (DHCP via udhcpc)             │    │
-│  │  -> drops to interactive shell                       │    │
+│  /init (shell script, 2.3 KB)                        │
+│  -> mounts proc/sys/devtmpfs                         │
+│  -> mounts EFI partition (vfat)                      │
+│  -> loads kernel modules via insmod                  │
+│  -> mounts Revo data volume (ext4)                   │
+│  -> configures network (DHCP via udhcpc)             │
+│  -> starts containerd (Docker runtime)               │
+│  -> drops to interactive shell                       │
 │  └──────────────────────────────────────────────────────┘    │
 │                                                              │
 ├──────────────────────────────────────────────────────────────┤
 │                    LAYER 1: INITRAMFS (tmpfs)                │
 │                                                              │
-│  Format: cpio newc, gzip-compressed (631 KB)                │
+│  Format: cpio newc, gzip-compressed (~2.7 MB)               │
 │  Contents: /bin, /sbin, /etc, /dev, /proc, /sys, /tmp       │
+│  + containerd (static, 1.5 MB), runc (static, 0.5 MB)       │
+│  + revocker Docker CLI shim (0.1 MB)                        │
 │  Kernel extracts this into a tmpfs at boot                  │
 │  Entirely in-memory, read-only after boot                    │
 │                                                              │
@@ -124,6 +127,11 @@ The EFI stub reads `initrd.img` from the same ESP directory as `BOOTX64.EFI` via
   ├── udhcpc -i eth0
   │   Purpose: DHCP network configuration
   │
+  ├── containerd &
+  │   Purpose: Start container runtime for Docker support
+  │   containerd manages OCI container lifecycle via runc
+  │   revocker CLI shim translates 'docker' commands
+  │
   └── exec /bin/sh
       Purpose: interactive shell for the user
 ```
@@ -132,7 +140,7 @@ The EFI stub reads `initrd.img` from the same ESP directory as `BOOTX64.EFI` via
 
 ## 3. Component Interaction Model
 
-Revo uses a **flat component model** — there is no process supervisor, no D-Bus, no service manager. Components interact through the filesystem and standard Unix primitives.
+Revo uses a **flat component model with Docker support** — the init script starts containerd as a supervised background process, providing a Docker runtime without a separate daemon manager.
 
 ```
                     ┌─────────────┐

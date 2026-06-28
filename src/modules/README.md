@@ -1,6 +1,6 @@
 # Kernel Modules
 
-These 7 kernel modules are the minimal set required for Revo OS v0.1.0. They are extracted from the Alpine Linux `linux-virt` package (6.12.94-r0).
+These 7 kernel modules are the minimal set required for Revo OS v0.2.0. They are extracted from the Alpine Linux `linux-virt` package (6.12.94-r0).
 
 ## Module List
 
@@ -31,4 +31,4 @@ These modules are built from:
 
 ## Future
 
-In Revo v0.2.0+, modules may be rebuilt from source with further size optimization (stripping debug sections, LTO, etc.).
+In Revo v0.3.0+, modules may be rebuilt from source with further size optimization (stripping debug sections, LTO, etc.).

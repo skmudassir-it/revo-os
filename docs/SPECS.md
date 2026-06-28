@@ -1,6 +1,6 @@
 # Revo OS — Technical Specifications
 
-**Version:** 0.1.0 · **Author:** Mudassir  
+**Version:** 0.2.0 · **Author:** Mudassir  
 
 ---
 
@@ -9,16 +9,16 @@
 | Parameter | Value |
 |-----------|-------|
 | **OS Name** | Revo OS |
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Architecture** | x86_64 (AMD64) |
 | **Boot Method** | UEFI (GPT partition table) |
 | **EFI Support** | Native (CONFIG_EFI_STUB=y) |
-| **Compressed Size** | 13 MB (tar.gz) |
+| **Compressed Size** | 15 MB (tar.gz) |
 | **Installed Size** | ~128 MB (disk image with partitions) |
 | **Kernel RAM** | ~11 MB (code + data + BSS) |
-| **Userspace RAM** | ~5 MB (initramfs + shell) |
-| **Minimum RAM** | 128 MB |
-| **Recommended RAM** | 512 MB |
+| **Userspace RAM** | ~7 MB (initramfs + shell + containerd + runc) |
+| **Minimum RAM** | 256 MB |
+| **Recommended RAM** | 1 GB |
 | **Disk Requirement** | 128 MB (one USB drive or disk) |
 
 ---
@@ -95,6 +95,14 @@
 | Disk | 8 | fdisk, mkfs, dd, sync, losetup |
 | Misc | 164 | date, echo, sleep, true, false, test, expr, bc |
 
+### Container Runtime
+
+| Component | Binary | Size | Purpose |
+|-----------|--------|------|---------|
+| containerd | `/bin/containerd` | ~1.5 MB | Container lifecycle manager (gRPC, image pull, task execution) |
+| runc | `/bin/runc` | ~0.5 MB | OCI runtime (namespace creation, cgroups, rootfs pivot) |
+| revocker | `/bin/docker` | ~0.1 MB | Docker CLI compatibility shim (translates to containerd commands) |
+
 ---
 
 ## 4. Partition Schema
@@ -133,10 +141,11 @@ loader/
 | UEFI → Kernel entry | ~100 ms | Firmware loads BOOTX64.EFI |
 | Kernel decompression | ~200 ms | gzip decompression of bzImage |
 | Kernel initialization | ~300 ms | CPU, memory, PCI, storage |
-| Initramfs extraction | ~50 ms | cpio decompression to tmpfs |
+| Initramfs extraction | ~100 ms | cpio decompression to tmpfs |
 | Init script execution | ~200 ms | Mount filesystems, load modules |
 | Network configuration | ~500 ms | DHCP discover + offer exchange |
-| **Total to shell** | **~1.5 seconds** | Interactive prompt ready |
+| containerd startup | ~200 ms | Container runtime initialization |
+| **Total to shell** | **~1.7 seconds** | Interactive prompt + Docker ready |
 
 *Measured on QEMU with 2 vCPUs, NVMe storage, 2 GB RAM*
 
@@ -159,7 +168,7 @@ loader/
 
 ### Runtime Dependencies
 
-Revo OS v0.1.0 has **zero runtime dependencies**. The kernel and initramfs are fully self-contained. No external packages, libraries, or services are required.
+Revo OS v0.2.0 has **zero runtime dependencies**. The kernel and initramfs are fully self-contained. containerd, runc, and revocker are statically compiled and included in the initramfs. No external packages, libraries, or services are required.
 
 ---
 
@@ -209,7 +218,7 @@ Revo OS v0.1.0 has **zero runtime dependencies**. The kernel and initramfs are f
 | Limitation | Impact | Resolution |
 |------------|--------|------------|
 | No WiFi support | Ethernet-only networking | Load WiFi modules from data partition |
-| No USB 3.0 xHCI driver | Only USB 2.0 devices work | xHCI module planned for v0.2.0 |
+| No xHCI (USB 3.0) | USB 3.0 devices may not work | xHCI module planned for v0.3.0 |
 | No sound | No audio output | Not in scope for minimal OS |
 | No GPU acceleration | Framebuffer-only display | GPU passthrough to containers (future) |
 | No IPv6 | IPv4 only | Load IPv6 module from data partition |

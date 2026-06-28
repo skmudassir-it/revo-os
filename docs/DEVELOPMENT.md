@@ -1,6 +1,6 @@
 # Revo OS — Development Details
 
-**Version:** 0.1.0 · **Author:** Mudassir  
+**Version:** 0.2.0 · **Author:** Mudassir  
 
 This document provides in-depth technical explanations of every design decision, algorithm, and implementation detail in Revo OS. It is written for developers who want to understand not just *what* was built, but *why* and *how*.
 
@@ -151,6 +151,37 @@ ALGORITHM: configure_network()
     If DHCP fails: Message displayed, system continues booting
 ```
 
+### 1.8 containerd Startup (v0.2.0+)
+
+```
+ALGORITHM: start_containerd()
+  PURPOSE: Launch the Docker container runtime as a background process
+
+  Step 1: Check binaries
+    Test that /bin/containerd and /bin/runc are executable.
+    If either is missing, skip with a notice and continue booting.
+
+  Step 2: Create runtime directory
+    mkdir -p /run/containerd
+    → containerd uses this for its Unix socket and state files
+
+  Step 3: Launch containerd
+    containerd &
+    CONTAINERD_PID=$!
+
+  Step 4: Verify startup
+    sleep 1 (wait for daemon to initialize)
+    kill -0 $CONTAINERD_PID → test if process is alive
+    
+    On success: "containerd running (PID N)" + "revocker ready"
+    On failure: "containerd failed to start"
+
+  RATIONALE: containerd runs as a background process supervised
+  by PID 1. If it crashes, PID 1 reaps it. The user can restart
+  it manually. This is simpler than systemd/s6 and adds only
+  ~200ms to boot time.
+```
+
 ---
 
 ## 2. GPT Disk Image Builder (`scripts/build-image.py`)
@@ -254,7 +285,7 @@ ENTRY_1 (Data):
 setup-usb.sh executes these steps in order:
 
   1. LOSETUP: Attach image to loopback device
-     sudo losetup -P -f revo-os-v0.1.0.img
+     sudo losetup -P -f revo-os-v0.2.0.img
      The -P flag auto-creates partition devices (loop0p1, loop0p2)
      
   2. MKFS: Format both partitions

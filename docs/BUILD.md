@@ -1,12 +1,12 @@
 # Revo OS — Build Guide
 
-**Version:** 0.1.0 · **Author:** Mudassir  
+**Version:** 0.2.0 · **Author:** Mudassir  
 
 ---
 
 ## 1. Build Overview
 
-Revo OS v0.1.0 is built by assembling four pre-compiled components rather than compiling everything from source. This approach was chosen for v0.1.0 to prove the architecture quickly. The v0.2.0 build system will compile from source for full reproducibility.
+Revo OS v0.2.0 is built by assembling pre-compiled components (Alpine kernel, Busybox, containerd, runc) rather than compiling everything from source. The v0.3.0 build system will introduce revo-fs package streaming.
 
 ### Build Pipeline
 
@@ -15,6 +15,7 @@ Revo OS v0.1.0 is built by assembling four pre-compiled components rather than c
 │ Alpine Linux     │    │ Alpine Busybox   │    │ Init Script      │
 │ linux-virt 6.12  │    │ static 1.37.0    │    │ (hand-written)   │
 │ (prebuilt .apk)  │    │ (prebuilt .apk)  │    │                  │
+│ + containerd     │    │ + runc binaries  │    │ + revocker.sh    │
 └────────┬─────────┘    └────────┬─────────┘    └────────┬─────────┘
          │                       │                       │
          ├─ vmlinuz-virt (12 MB) │                       │
@@ -29,13 +30,13 @@ Revo OS v0.1.0 is built by assembling four pre-compiled components rather than c
                      │                       │
               ┌──────┴───────────────────────┴──────┐
               │     cpio + gzip                    │
-              │     → initramfs.cpio.gz (631 KB)   │
+              │     → initramfs.cpio.gz (~2.7 MB)     │
               └──────────────────┬─────────────────┘
                                  │
               ┌──────────────────┴─────────────────┐
               │  build-image.py (GPT partitioner)   │
               │  + setup-usb.sh (format + copy)     │
-              │  → revo-os-v0.1.0.img (128 MB)     │
+              │  → revo-os-v0.2.0.img (128 MB)     │
               └──────────────────┬─────────────────┘
                                  │
                     ┌────────────┴────────────┐
@@ -123,8 +124,44 @@ cd initramfs
 find . -print0 | busybox cpio -o -H newc --null | gzip > ../initramfs.cpio.gz
 cd ..
 
-# Result: initramfs.cpio.gz (~631 KB)
+# Result: initramfs.cpio.gz (~2.7 MB, includes containerd + runc)
 ```
+
+### Step 3b: Add Docker Runtime (containerd + runc + revocker)
+
+```bash
+# Download containerd static binary
+wget https://github.com/containerd/containerd/releases/download/v2.0.0/containerd-2.0.0-linux-amd64.tar.gz
+tar xzf containerd-2.0.0-linux-amd64.tar.gz -C containerd-bin/
+cp containerd-bin/bin/containerd initramfs/bin/containerd
+strip initramfs/bin/containerd
+
+# Get runc static binary
+wget https://github.com/opencontainers/runc/releases/download/v1.2.0/runc.amd64
+cp runc.amd64 initramfs/bin/runc
+chmod 755 initramfs/bin/runc
+strip initramfs/bin/runc
+
+# Create revocker Docker CLI shim (lightweight wrapper script)
+cat > initramfs/bin/docker << 'REVOCKER_EOF'
+#!/bin/busybox sh
+# revocker — Docker CLI compatibility shim for containerd
+# Translates 'docker' commands to 'ctr' (containerd CLI)
+CMD="$1"; shift
+case "$CMD" in
+    ps)     ctr task ls ;;
+    images) ctr image ls ;;
+    run)    ctr run --rm "$@" ;;
+    pull)   ctr image pull "$@" ;;
+    *)      echo "revocker: unknown command '$CMD'"; exit 1 ;;
+esac
+REVOCKER_EOF
+chmod 755 initramfs/bin/docker
+
+# Package initramfs (now ~2.7 MB)
+cd initramfs
+find . -print0 | busybox cpio -o -H newc --null | gzip > ../initramfs.cpio.gz
+cd ..
 
 ### Step 4: Select Essential Kernel Modules
 
@@ -147,7 +184,7 @@ cp lib/modules/*/kernel/drivers/net/ethernet/intel/e1000/e1000.ko.gz modules_out
 
 ```bash
 python3 scripts/build-image.py
-# Creates: revo-os-v0.1.0.img (128 MB, GPT-partitioned)
+# Result: revo-os-v0.2.0.img (128 MB, GPT-partitioned)
 # Partition 1: EFI System Partition (64 MB, type C12A7328-...)
 # Partition 2: Revo Data (62 MB, type 0FC63DAF-...)
 ```
@@ -169,7 +206,7 @@ sudo ./scripts/setup-usb.sh
 ### Step 7: Flash to USB
 
 ```bash
-sudo dd if=revo-os-v0.1.0.img of=/dev/sdX bs=4M status=progress conv=fsync
+sudo dd if=revo-os-v0.2.0.img of=/dev/sdX bs=4M status=progress conv=fsync
 sync
 ```
 
@@ -242,7 +279,7 @@ gzip -dc initramfs.cpio.gz | cpio -t | head -20
 
 ```bash
 python3 -c "
-with open('revo-os-v0.1.0.img', 'rb') as f:
+with open('revo-os-v0.2.0.img', 'rb') as f:
     f.seek(512)
     hdr = f.read(512)
     print('GPT Signature:', hdr[0:8])
