@@ -1,6 +1,6 @@
 # Revo OS — Architecture
 
-**Version:** 0.2.0 · **Author:** Mudassir · **June 2026**
+**Version:** 0.3.0 · **Author:** Mudassir · **June 2026**
 
 ---
 
@@ -19,25 +19,31 @@ Revo OS is organized into three distinct layers, each with a well-defined bounda
 │  └──────────────────────────────────────────────────────┘    │
 │                                                              │
 │  ┌──────────────────────────────────────────────────────┐    │
-│  /init (shell script, 2.3 KB)                        │
+│  /init (shell script, 3.5 KB)                        │
 │  -> mounts proc/sys/devtmpfs                         │
 │  -> mounts EFI partition (vfat)                      │
 │  -> loads kernel modules via insmod                  │
 │  -> mounts Revo data volume (ext4)                   │
 │  -> configures network (DHCP via udhcpc)             │
 │  -> starts containerd (Docker runtime)               │
+│  -> starts revo-fs (package streaming daemon)        │
 │  -> drops to interactive shell                       │
 │  └──────────────────────────────────────────────────────┘    │
 │                                                              │
 ├──────────────────────────────────────────────────────────────┤
 │                    LAYER 1: INITRAMFS (tmpfs)                │
 │                                                              │
-│  Format: cpio newc, gzip-compressed (~2.7 MB)               │
+│  Format: cpio newc, gzip-compressed (~2.4 MB)               │
 │  Contents: /bin, /sbin, /etc, /dev, /proc, /sys, /tmp       │
 │  + containerd (static, 1.5 MB), runc (static, 0.5 MB)       │
 │  + revocker Docker CLI shim (0.1 MB)                        │
+│  + revo-fs package streaming daemon (0.3 MB)                │
 │  Kernel extracts this into a tmpfs at boot                  │
 │  Entirely in-memory, read-only after boot                    │
+│                                                              │
+│  ─── NOT IN CORE (streamed by revo-fs) ───                  │
+│  Python 3.12, Node.js 22, git, nginx, gcc, ...              │
+│  All available on first invocation via DHT mesh             │
 │                                                              │
 ├──────────────────────────────────────────────────────────────┤
 │                    LAYER 0: KERNEL                           │
@@ -132,6 +138,11 @@ The EFI stub reads `initrd.img` from the same ESP directory as `BOOTX64.EFI` via
   │   containerd manages OCI container lifecycle via runc
   │   revocker CLI shim translates 'docker' commands
   │
+  ├── revo-fs --cache /revo/pkgs --mesh /revo/overlay-cache &
+  │   Purpose: On-demand package streaming via BitTorrent DHT
+  │   Intercepts missing exec() calls, fetches .revo-pkg files
+  │   Mounts squashfs overlays, creates symlinks on first use
+  │
   └── exec /bin/sh
       Purpose: interactive shell for the user
 ```
@@ -140,7 +151,7 @@ The EFI stub reads `initrd.img` from the same ESP directory as `BOOTX64.EFI` via
 
 ## 3. Component Interaction Model
 
-Revo uses a **flat component model with Docker support** — the init script starts containerd as a supervised background process, providing a Docker runtime without a separate daemon manager.
+Revo uses a **flat component model with Docker support and package streaming** — the init script starts containerd and revo-fs as supervised background processes.
 
 ```
                     ┌─────────────┐

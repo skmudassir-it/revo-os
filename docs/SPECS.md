@@ -1,6 +1,6 @@
 # Revo OS — Technical Specifications
 
-**Version:** 0.2.0 · **Author:** Mudassir  
+**Version:** 0.3.0 · **Author:** Mudassir  
 
 ---
 
@@ -9,14 +9,14 @@
 | Parameter | Value |
 |-----------|-------|
 | **OS Name** | Revo OS |
-| **Version** | 0.2.0 |
+| **Version** | 0.3.0 |
 | **Architecture** | x86_64 (AMD64) |
 | **Boot Method** | UEFI (GPT partition table) |
 | **EFI Support** | Native (CONFIG_EFI_STUB=y) |
-| **Compressed Size** | 15 MB (tar.gz) |
+| **Compressed Size** | 12 MB (tar.gz) |
 | **Installed Size** | ~128 MB (disk image with partitions) |
 | **Kernel RAM** | ~11 MB (code + data + BSS) |
-| **Userspace RAM** | ~7 MB (initramfs + shell + containerd + runc) |
+| **Userspace RAM** | ~8 MB (initramfs + shell + containerd + runc + revo-fs) |
 | **Minimum RAM** | 256 MB |
 | **Recommended RAM** | 1 GB |
 | **Disk Requirement** | 128 MB (one USB drive or disk) |
@@ -103,6 +103,24 @@
 | runc | `/bin/runc` | ~0.5 MB | OCI runtime (namespace creation, cgroups, rootfs pivot) |
 | revocker | `/bin/docker` | ~0.1 MB | Docker CLI compatibility shim (translates to containerd commands) |
 
+### Package Streaming (revo-fs)
+
+| Component | Binary | Size | Purpose |
+|-----------|--------|------|---------|
+| revo-fs | `/bin/revo-fs` | ~0.3 MB | On-demand package streaming daemon (FUSE + BitTorrent DHT) |
+| Package format | `.revo-pkg` | varies | Squashfs delta with full-path file tree |
+| DHT protocol | Mainline DHT (Kademlia) | — | BitTorrent-based peer discovery |
+| Transfer protocol | BitTorrent v2 | — | infohash = SHA-256 of file tree |
+
+### Package Sources
+
+| Source | Protocol | For |
+|--------|----------|-----|
+| Revo Package Mesh | BitTorrent DHT + HTTPS seeds | Revo-native `.revo-pkg` packages |
+| Ubuntu archive | HTTPS → `.deb` → convert to squashfs | Debian/Ubuntu packages |
+| GitHub Releases | HTTPS → extract → squashfs | CLI tools, standalone binaries |
+| ghcr.io / Docker Hub | OCI pull → extract layer | Containerized tools |
+
 ---
 
 ## 4. Partition Schema
@@ -142,10 +160,11 @@ loader/
 | Kernel decompression | ~200 ms | gzip decompression of bzImage |
 | Kernel initialization | ~300 ms | CPU, memory, PCI, storage |
 | Initramfs extraction | ~100 ms | cpio decompression to tmpfs |
-| Init script execution | ~200 ms | Mount filesystems, load modules |
+| Init script execution | ~250 ms | Mount filesystems, load modules |
 | Network configuration | ~500 ms | DHCP discover + offer exchange |
 | containerd startup | ~200 ms | Container runtime initialization |
-| **Total to shell** | **~1.7 seconds** | Interactive prompt + Docker ready |
+| revo-fs startup | ~150 ms | FUSE mount + DHT bootstrap |
+| **Total to shell** | **~1.9 seconds** | Interactive prompt + Docker + streaming ready |
 
 *Measured on QEMU with 2 vCPUs, NVMe storage, 2 GB RAM*
 
@@ -168,7 +187,7 @@ loader/
 
 ### Runtime Dependencies
 
-Revo OS v0.2.0 has **zero runtime dependencies**. The kernel and initramfs are fully self-contained. containerd, runc, and revocker are statically compiled and included in the initramfs. No external packages, libraries, or services are required.
+Revo OS v0.3.0 has **zero runtime dependencies**. The kernel and initramfs are fully self-contained. containerd, runc, revocker, and revo-fs are statically compiled and included in the initramfs. Additional packages (Python, Node.js, etc.) are streamed on-demand via revo-fs.
 
 ---
 

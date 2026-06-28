@@ -1,12 +1,12 @@
 # Revo OS — Build Guide
 
-**Version:** 0.2.0 · **Author:** Mudassir  
+**Version:** 0.3.0 · **Author:** Mudassir  
 
 ---
 
 ## 1. Build Overview
 
-Revo OS v0.2.0 is built by assembling pre-compiled components (Alpine kernel, Busybox, containerd, runc) rather than compiling everything from source. The v0.3.0 build system will introduce revo-fs package streaming.
+Revo OS v0.3.0 is built by assembling pre-compiled components and adding the revo-fs package streaming daemon. The initramfs is leaner because packages are fetched on-demand rather than bundled.
 
 ### Build Pipeline
 
@@ -16,6 +16,7 @@ Revo OS v0.2.0 is built by assembling pre-compiled components (Alpine kernel, Bu
 │ linux-virt 6.12  │    │ static 1.37.0    │    │ (hand-written)   │
 │ (prebuilt .apk)  │    │ (prebuilt .apk)  │    │                  │
 │ + containerd     │    │ + runc binaries  │    │ + revocker.sh    │
+│                  │    │ + revo-fs daemon │    │ + revo-fs hooks  │
 └────────┬─────────┘    └────────┬─────────┘    └────────┬─────────┘
          │                       │                       │
          ├─ vmlinuz-virt (12 MB) │                       │
@@ -30,13 +31,13 @@ Revo OS v0.2.0 is built by assembling pre-compiled components (Alpine kernel, Bu
                      │                       │
               ┌──────┴───────────────────────┴──────┐
               │     cpio + gzip                    │
-              │     → initramfs.cpio.gz (~2.7 MB)     │
+              │     → initramfs.cpio.gz (~2.4 MB)     │
               └──────────────────┬─────────────────┘
                                  │
               ┌──────────────────┴─────────────────┐
               │  build-image.py (GPT partitioner)   │
               │  + setup-usb.sh (format + copy)     │
-              │  → revo-os-v0.2.0.img (128 MB)     │
+              │  → revo-os-v0.3.0.img (128 MB)     │
               └──────────────────┬─────────────────┘
                                  │
                     ┌────────────┴────────────┐
@@ -127,6 +128,27 @@ cd ..
 # Result: initramfs.cpio.gz (~2.7 MB, includes containerd + runc)
 ```
 
+### Step 3c: Add revo-fs Package Streaming Daemon
+
+```bash
+# Build revo-fs from source (static binary)
+git clone https://github.com/skmudassir-it/revo-fs.git
+cd revo-fs
+make static REVOFS_VERSION=0.3.0
+cp revo-fs ../initramfs/bin/revo-fs
+strip ../initramfs/bin/revo-fs
+cd ..
+
+# Create revo-fs FUSE mount point helper
+mkdir -p initramfs/usr/local
+chmod 755 initramfs/bin/revo-fs
+
+# Package initramfs (now ~2.4 MB — smaller because revo-fs streams pkgs on-demand)
+cd initramfs
+find . -print0 | busybox cpio -o -H newc --null | gzip > ../initramfs.cpio.gz
+cd ..
+```
+
 ### Step 3b: Add Docker Runtime (containerd + runc + revocker)
 
 ```bash
@@ -184,7 +206,7 @@ cp lib/modules/*/kernel/drivers/net/ethernet/intel/e1000/e1000.ko.gz modules_out
 
 ```bash
 python3 scripts/build-image.py
-# Result: revo-os-v0.2.0.img (128 MB, GPT-partitioned)
+# Result: revo-os-v0.3.0.img (128 MB, GPT-partitioned)
 # Partition 1: EFI System Partition (64 MB, type C12A7328-...)
 # Partition 2: Revo Data (62 MB, type 0FC63DAF-...)
 ```
@@ -206,7 +228,7 @@ sudo ./scripts/setup-usb.sh
 ### Step 7: Flash to USB
 
 ```bash
-sudo dd if=revo-os-v0.2.0.img of=/dev/sdX bs=4M status=progress conv=fsync
+sudo dd if=revo-os-v0.3.0.img of=/dev/sdX bs=4M status=progress conv=fsync
 sync
 ```
 
@@ -279,7 +301,7 @@ gzip -dc initramfs.cpio.gz | cpio -t | head -20
 
 ```bash
 python3 -c "
-with open('revo-os-v0.2.0.img', 'rb') as f:
+with open('revo-os-v0.3.0.img', 'rb') as f:
     f.seek(512)
     hdr = f.read(512)
     print('GPT Signature:', hdr[0:8])

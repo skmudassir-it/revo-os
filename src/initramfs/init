@@ -1,6 +1,6 @@
 #!/bin/busybox sh
-# Revo OS v0.2.0 init script
-# Ultra-minimal Linux boot — Docker built-in via containerd + runc
+# Revo OS v0.3.0 init script
+# Ultra-minimal Linux boot — Docker + revo-fs package streaming
 
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -14,8 +14,8 @@ mount -t vfat /dev/vda1 /boot 2>/dev/null || true
 
 echo ""
 echo "  ╔══════════════════════════════════════╗"
-echo "  ║        🌀 REVO OS v0.2.0            ║"
-echo "  ║  The 15-Megabyte OS — Docker Inside  ║"
+echo "  ║        🌀 REVO OS v0.3.0            ║"
+echo "  ║  12 Megabyte OS — Stream Anything    ║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
 echo "  Kernel : $(uname -r)"
@@ -72,11 +72,30 @@ else
     echo "  [--] containerd/runc binaries not found"
 fi
 
+# Start revo-fs (on-demand package streaming)
 echo ""
-echo "  ┌─────────────────────────────────────────┐"
-echo "  │  Revo ready. Type 'help' for commands.  │"
-echo "  │  Docker built-in — try 'docker ps'      │"
-echo "  └─────────────────────────────────────────┘"
+echo "  [--] Starting revo-fs (package streaming daemon)..."
+if [ -x /bin/revo-fs ]; then
+    mkdir -p /revo/pkgs /revo/overlay-cache
+    revo-fs --cache /revo/pkgs --mesh /revo/overlay-cache &
+    REVOFS_PID=$!
+    sleep 1
+    if kill -0 "$REVOFS_PID" 2>/dev/null; then
+        echo "  [OK] revo-fs running (PID $REVOFS_PID)"
+        echo "  [OK] Package mesh connected — pkgs stream on first use"
+    else
+        echo "  [!!] revo-fs failed to start"
+    fi
+else
+    echo "  [--] revo-fs binary not found (packages pre-bundled)"
+fi
+
+echo ""
+echo "  ┌───────────────────────────────────────────────────────┐"
+echo "  │  Revo ready. Type 'help' for commands.               │"
+echo "  │  Docker built-in — try 'docker ps'                    │"
+echo "  │  Packages on-demand — try 'python3' or 'node'         │"
+echo "  └───────────────────────────────────────────────────────┘"
 echo ""
 
 exec /bin/sh

@@ -1,6 +1,6 @@
 # Revo OS — Development Details
 
-**Version:** 0.2.0 · **Author:** Mudassir  
+**Version:** 0.3.0 · **Author:** Mudassir  
 
 This document provides in-depth technical explanations of every design decision, algorithm, and implementation detail in Revo OS. It is written for developers who want to understand not just *what* was built, but *why* and *how*.
 
@@ -182,6 +182,86 @@ ALGORITHM: start_containerd()
   ~200ms to boot time.
 ```
 
+### 1.9 revo-fs Startup (v0.3.0+)
+
+```
+ALGORITHM: start_revo_fs()
+  PURPOSE: Launch the on-demand package streaming daemon
+
+  Step 1: Check binary
+    Test that /bin/revo-fs is executable.
+    If missing, skip with a notice (packages pre-bundled).
+
+  Step 2: Create cache directories
+    mkdir -p /revo/pkgs          → squashfs package cache
+    mkdir -p /revo/overlay-cache → FUSE overlay mount points
+
+  Step 3: Launch revo-fs
+    revo-fs --cache /revo/pkgs --mesh /revo/overlay-cache &
+    REVOFS_PID=$!
+
+    Flags:
+      --cache /revo/pkgs     → Where downloaded .revo-pkg files are stored
+      --mesh /revo/overlay-cache → DHT state + overlay mount points
+
+  Step 4: Verify startup
+    sleep 1 (wait for FUSE mount + DHT bootstrap)
+    kill -0 $REVOFS_PID → test if process is alive
+
+    On success: "revo-fs running" + "Package mesh connected"
+    On failure: "revo-fs failed to start"
+
+  RATIONALE: revo-fs uses FUSE (Filesystem in Userspace) to
+  intercept missing exec() calls. The kernel's FUSE module
+  (CONFIG_FUSE_FS=y) routes filesystem ops to the userspace
+  daemon. No custom kernel module needed.
+```
+
+### 1.10 How revo-fs Streams Packages
+
+```
+ALGORITHM: revo_fs_exec_intercept()
+  Trigger: User runs a command not found in /bin
+
+  Step 1: Shell searches PATH
+    /bin/python3 → not found
+    /usr/bin/python3 → not found (but revo-fs wrapper exists)
+    /usr/local/python3 → revo-fs FUSE mount point
+
+  Step 2: FUSE lookup sent to revo-fs daemon
+    revo-fs receives FUSE_LOOKUP for "python3"
+
+  Step 3: Check local cache
+    Look for /revo/pkgs/python3-3.12.7.revo-pkg
+    If found: mount squashfs at /usr/local/python3, return EEXIST
+
+  Step 4: Query DHT
+    infohash = SHA-256("python3-3.12.7.x86_64")
+    DHT lookup → find peers seeding this package
+
+  Step 5: Download
+    BitTorrent v2 transfer (parallel from multiple peers)
+    Verify SHA-256 of received .revo-pkg
+
+  Step 6: Mount and link
+    mount -t squashfs /revo/pkgs/python3-3.12.7.revo-pkg /usr/local/python3
+    ln -sf /usr/local/python3/usr/bin/python3 /usr/bin/python3
+
+  Step 7: Return
+    revo-fs returns file attributes to kernel
+    Kernel retries exec() → succeeds
+
+  Cold start latencies:
+    Package lookup + DHT query: ~100ms
+    Download (100 Mbps, 15 MB package): ~1.2s
+    SHA-256 verify + mount: ~50ms
+    Total first use: ~1.4s
+
+  Cached (warm):
+    Squashfs mount: ~30ms
+    Total: ~30ms
+```
+
 ---
 
 ## 2. GPT Disk Image Builder (`scripts/build-image.py`)
@@ -285,7 +365,7 @@ ENTRY_1 (Data):
 setup-usb.sh executes these steps in order:
 
   1. LOSETUP: Attach image to loopback device
-     sudo losetup -P -f revo-os-v0.2.0.img
+     sudo losetup -P -f revo-os-v0.3.0.img
      The -P flag auto-creates partition devices (loop0p1, loop0p2)
      
   2. MKFS: Format both partitions
