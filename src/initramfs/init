@@ -1,6 +1,6 @@
 #!/bin/busybox sh
-# Revo OS v0.3.0 init script
-# Ultra-minimal Linux boot — Docker + revo-fs package streaming
+# Revo OS v0.4.0 init script
+# Ultra-minimal Linux boot — tinyconfig kernel + Docker + package streaming
 
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -14,11 +14,11 @@ mount -t vfat /dev/vda1 /boot 2>/dev/null || true
 
 echo ""
 echo "  ╔══════════════════════════════════════╗"
-echo "  ║        🌀 REVO OS v0.3.0            ║"
-echo "  ║  12 Megabyte OS — Stream Anything    ║"
+echo "  ║        🌀 REVO OS v0.4.0            ║"
+echo "  ║   8 Megabyte OS — Bare-Metal Tiny    ║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
-echo "  Kernel : $(uname -r)"
+echo "  Kernel : $(uname -r) [tinyconfig]"
 echo "  Arch   : $(uname -m)"
 echo "  CPU    : $(grep -c processor /proc/cpuinfo) cores"
 echo "  RAM    : $(awk '/MemTotal/{printf "%.0f", $2/1024}' /proc/meminfo) MB"

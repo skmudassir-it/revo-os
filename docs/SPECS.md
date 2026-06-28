@@ -1,6 +1,6 @@
 # Revo OS — Technical Specifications
 
-**Version:** 0.3.0 · **Author:** Mudassir  
+**Version:** 0.4.0 · **Author:** Mudassir  
 
 ---
 
@@ -9,13 +9,13 @@
 | Parameter | Value |
 |-----------|-------|
 | **OS Name** | Revo OS |
-| **Version** | 0.3.0 |
+| **Version** | 0.4.0 |
 | **Architecture** | x86_64 (AMD64) |
 | **Boot Method** | UEFI (GPT partition table) |
 | **EFI Support** | Native (CONFIG_EFI_STUB=y) |
-| **Compressed Size** | 12 MB (tar.gz) |
+| **Compressed Size** | 8 MB (tar.gz) |
 | **Installed Size** | ~128 MB (disk image with partitions) |
-| **Kernel RAM** | ~11 MB (code + data + BSS) |
+| **Kernel RAM** | ~6 MB (code + data + BSS) |
 | **Userspace RAM** | ~8 MB (initramfs + shell + containerd + runc + revo-fs) |
 | **Minimum RAM** | 256 MB |
 | **Recommended RAM** | 1 GB |
@@ -28,13 +28,13 @@
 | Parameter | Value |
 |-----------|-------|
 | **Kernel Version** | Linux 6.12.94 |
-| **Kernel Variant** | virt (Alpine Linux build) |
-| **Kernel Build** | `#1-Alpine SMP PREEMPT_DYNAMIC` |
-| **Build Date** | 2026-06-23 |
+| **Kernel Variant** | Custom `tinyconfig` build |
+| **Kernel Build** | `#1-Revo SMP PREEMPT_DYNAMIC` |
+| **Build Date** | 2026-06-28 |
 | **Compression** | gzip (bzImage format) |
-| **Kernel Size** | 12 MB (compressed), ~28 MB (uncompressed) |
-| **Config Options** | ~2,800 (Alpine virt config) |
-| **Target Config** | ~500 (future tinyconfig-based build) |
+| **Kernel Size** | 4.5 MB (compressed), ~16 MB (uncompressed) |
+| **Config Options** | ~500 (tinyconfig base + selective enablement) |
+| **Reduction vs Alpine** | 62% smaller (12 MB → 4.5 MB) |
 
 ### Key Kernel Features (Built-In)
 
@@ -157,14 +157,14 @@ loader/
 | Phase | Duration | Description |
 |-------|----------|-------------|
 | UEFI → Kernel entry | ~100 ms | Firmware loads BOOTX64.EFI |
-| Kernel decompression | ~200 ms | gzip decompression of bzImage |
-| Kernel initialization | ~300 ms | CPU, memory, PCI, storage |
+| Kernel decompression | ~100 ms | gzip decompression of bzImage (4.5 MB) |
+| Kernel initialization | ~200 ms | CPU, memory, PCI, storage (fewer drivers) |
 | Initramfs extraction | ~100 ms | cpio decompression to tmpfs |
 | Init script execution | ~250 ms | Mount filesystems, load modules |
 | Network configuration | ~500 ms | DHCP discover + offer exchange |
 | containerd startup | ~200 ms | Container runtime initialization |
 | revo-fs startup | ~150 ms | FUSE mount + DHT bootstrap |
-| **Total to shell** | **~1.9 seconds** | Interactive prompt + Docker + streaming ready |
+| **Total to shell** | **~1.6 seconds** | Faster: less kernel to decompress + init |
 
 *Measured on QEMU with 2 vCPUs, NVMe storage, 2 GB RAM*
 
@@ -187,7 +187,7 @@ loader/
 
 ### Runtime Dependencies
 
-Revo OS v0.3.0 has **zero runtime dependencies**. The kernel and initramfs are fully self-contained. containerd, runc, revocker, and revo-fs are statically compiled and included in the initramfs. Additional packages (Python, Node.js, etc.) are streamed on-demand via revo-fs.
+Revo OS v0.4.0 has **zero runtime dependencies**. The custom-compiled tinyconfig kernel, Busybox initramfs, containerd, runc, revocker, and revo-fs are fully self-contained. Additional packages stream on-demand via revo-fs.
 
 ---
 

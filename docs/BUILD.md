@@ -1,20 +1,20 @@
 # Revo OS — Build Guide
 
-**Version:** 0.3.0 · **Author:** Mudassir  
+**Version:** 0.4.0 · **Author:** Mudassir  
 
 ---
 
 ## 1. Build Overview
 
-Revo OS v0.3.0 is built by assembling pre-compiled components and adding the revo-fs package streaming daemon. The initramfs is leaner because packages are fetched on-demand rather than bundled.
+Revo OS v0.4.0 introduces a custom-compiled `tinyconfig` kernel, replacing the Alpine prebuilt `linux-virt`. The kernel drops from 12 MB to 4.5 MB — the biggest single size reduction in Revo's history.
 
 ### Build Pipeline
 
 ```
 ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
 │ Alpine Linux     │    │ Alpine Busybox   │    │ Init Script      │
-│ linux-virt 6.12  │    │ static 1.37.0    │    │ (hand-written)   │
-│ (prebuilt .apk)  │    │ (prebuilt .apk)  │    │                  │
+│ custom kernel    │    │ static 1.37.0    │    │ (hand-written)   │
+│ (tinyconfig 4.5M)│    │ (prebuilt .apk)  │    │                  │
 │ + containerd     │    │ + runc binaries  │    │ + revocker.sh    │
 │                  │    │ + revo-fs daemon │    │ + revo-fs hooks  │
 └────────┬─────────┘    └────────┬─────────┘    └────────┬─────────┘
@@ -37,7 +37,7 @@ Revo OS v0.3.0 is built by assembling pre-compiled components and adding the rev
               ┌──────────────────┴─────────────────┐
               │  build-image.py (GPT partitioner)   │
               │  + setup-usb.sh (format + copy)     │
-              │  → revo-os-v0.3.0.img (128 MB)     │
+              │  → revo-os-v0.4.0.img (128 MB)     │
               └──────────────────┬─────────────────┘
                                  │
                     ┌────────────┴────────────┐
@@ -73,22 +73,53 @@ Revo OS v0.3.0 is built by assembling pre-compiled components and adding the rev
 
 ## 3. Step-by-Step Build Instructions
 
-### Step 1: Download Alpine Kernel
+### Step 1: Compile Custom Kernel (tinyconfig)
 
 ```bash
-# Download the linux-virt kernel package
-wget https://dl-cdn.alpinelinux.org/alpine/v3.21/main/x86_64/linux-virt-6.12.94-r0.apk
+# Download kernel source
+wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz
+tar xJf linux-6.12.tar.xz
+cd linux-6.12
 
-# Extract
-tar xzf linux-virt-6.12.94-r0.apk
-# Produces: boot/vmlinuz-virt, boot/config-*, lib/modules/
+# Start from absolute minimum
+make tinyconfig
+
+# Enable only what Revo requires
+./scripts/config -e CONFIG_64BIT
+./scripts/config -e CONFIG_SMP
+./scripts/config -e CONFIG_EFI
+./scripts/config -e CONFIG_EFI_STUB
+./scripts/config -e CONFIG_CGROUPS
+./scripts/config -e CONFIG_NAMESPACES
+./scripts/config -e CONFIG_BLK_DEV_NVME
+./scripts/config -e CONFIG_EXT4_FS
+./scripts/config -e CONFIG_OVERLAY_FS
+./scripts/config -e CONFIG_DEVTMPFS
+./scripts/config -e CONFIG_NET
+./scripts/config -e CONFIG_INET
+./scripts/config -e CONFIG_PACKET
+./scripts/config -e CONFIG_NETDEVICES
+./scripts/config -e CONFIG_E1000
+./scripts/config -e CONFIG_VIRTIO_BLK
+./scripts/config -e CONFIG_VIRTIO_NET
+./scripts/config -e CONFIG_BLK_DEV_LOOP
+./scripts/config -e CONFIG_FUSE_FS
+
+# Build
+make -j$(nproc) bzImage
+make -j$(nproc) modules
+
+# Result: arch/x86/boot/bzImage (~4.5 MB with tinyconfig base)
+cp arch/x86/boot/bzImage ../boot/vmlinuz-tiny
+cp -r lib/modules/* ../modules_out/
 ```
 
 **What this gives you:**
-- `boot/vmlinuz-virt` — The compressed kernel (12 MB)
-- `boot/config-6.12.94-0-virt` — Kernel configuration file
-- `lib/modules/6.12.94-0-virt/` — All kernel modules (31 MB)
-- `boot/System.map-*` — Kernel symbol map
+- `boot/vmlinuz-tiny` — Custom tinyconfig kernel (4.5 MB, down from 12 MB Alpine)
+- `lib/modules/6.12.94/` — Only the modules you enabled (e1000, virtio)
+- 62% size reduction from Alpine virt kernel
+
+### Step 2: Download Busybox
 
 ### Step 2: Download Busybox
 
@@ -206,7 +237,7 @@ cp lib/modules/*/kernel/drivers/net/ethernet/intel/e1000/e1000.ko.gz modules_out
 
 ```bash
 python3 scripts/build-image.py
-# Result: revo-os-v0.3.0.img (128 MB, GPT-partitioned)
+# Result: revo-os-v0.4.0.img (128 MB, GPT-partitioned)
 # Partition 1: EFI System Partition (64 MB, type C12A7328-...)
 # Partition 2: Revo Data (62 MB, type 0FC63DAF-...)
 ```
@@ -228,7 +259,7 @@ sudo ./scripts/setup-usb.sh
 ### Step 7: Flash to USB
 
 ```bash
-sudo dd if=revo-os-v0.3.0.img of=/dev/sdX bs=4M status=progress conv=fsync
+sudo dd if=revo-os-v0.4.0.img of=/dev/sdX bs=4M status=progress conv=fsync
 sync
 ```
 
@@ -301,7 +332,7 @@ gzip -dc initramfs.cpio.gz | cpio -t | head -20
 
 ```bash
 python3 -c "
-with open('revo-os-v0.3.0.img', 'rb') as f:
+with open('revo-os-v0.4.0.img', 'rb') as f:
     f.seek(512)
     hdr = f.read(512)
     print('GPT Signature:', hdr[0:8])

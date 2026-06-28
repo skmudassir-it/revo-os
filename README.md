@@ -1,12 +1,12 @@
-# 🌀 Revo OS — The 12-Megabyte Operating System
+# 🌀 Revo OS — The 8-Megabyte Operating System
 
 **Developed and coded by [Mudassir](https://github.com/skmudassir-it)**  
 *Conceived June 2026 · Built from scratch · Open source under MIT*
 
-[![OS Size](https://img.shields.io/badge/size-12_MB-00cc66)](https://github.com/skmudassir-it/revo-os)
-[![Kernel](https://img.shields.io/badge/kernel-Linux_6.12.94-blue)](https://www.kernel.org)
+[![OS Size](https://img.shields.io/badge/size-8_MB-00cc66)](https://github.com/skmudassir-it/revo-os)
+[![Kernel](https://img.shields.io/badge/kernel-tinyconfig_4.5MB-blue)](https://www.kernel.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.3.0-brightgreen)](https://github.com/skmudassir-it/revo-os/releases)
+[![Status](https://img.shields.io/badge/status-v0.4.0-brightgreen)](https://github.com/skmudassir-it/revo-os/releases)
 [![Docker](https://img.shields.io/badge/docker-built--in-2496ED)](https://github.com/skmudassir-it/revo-os)
 [![Streaming](https://img.shields.io/badge/packages-on--demand_streaming-7B42D2)](https://github.com/skmudassir-it/revo-os)
 
@@ -14,9 +14,9 @@
 
 ## Project Overview
 
-**Revo OS** is an ultra-minimal operating system designed to answer a single, provocative question: *how small can a fully functional Linux OS be while remaining genuinely useful?* The answer, as of v0.3.0, is **12 megabytes** — with Docker built-in and on-demand package streaming.
+**Revo OS** is an ultra-minimal operating system designed to answer a single, provocative question: *how small can a fully functional Linux OS be while remaining genuinely useful?* The answer, as of v0.4.0, is **8 megabytes** — with a custom-compiled `tinyconfig` kernel, Docker built-in, and on-demand package streaming.
 
-Revo is not a toy. It is a real, bootable, UEFI-native operating system built on Linux 6.12.94. It ships with a Busybox userspace of 306 Unix utilities, essential kernel modules, built-in Docker via containerd + runc, and **revo-fs** — an on-demand package streaming daemon that fetches packages from a BitTorrent-backed mesh on first use. The entire system — kernel, initramfs, modules, and setup scripts — compresses to 12 MB.
+Revo is not a toy. It is a real, bootable, UEFI-native operating system built on a custom-compiled Linux 6.12.94 kernel from `make tinyconfig` — slashing the kernel from Alpine's 12 MB to just **4.5 MB**. It ships with a Busybox userspace of 306 Unix utilities, built-in Docker via containerd + runc, and **revo-fs** on-demand package streaming. The entire system compresses to 8 MB.
 
 ### Why Revo Exists
 
@@ -46,7 +46,7 @@ This project is a personal exploration in OS minimalism by **Mudassir** — a st
 ### Test in QEMU (30 seconds)
 
 ```bash
-tar xzf revo-os-v0.3.0.tar.gz
+tar xzf revo-os-v0.4.0.tar.gz
 cd revo-package
 qemu-system-x86_64 -m 2G \
   -kernel vmlinuz-virt \
@@ -60,7 +60,7 @@ qemu-system-x86_64 -m 2G \
 cd revo-package
 python3 scripts/build-image.py    # Creates GPT disk image
 sudo ./scripts/setup-usb.sh       # Formats + copies boot files
-sudo dd if=revo-os-v0.3.0.img of=/dev/sdX bs=4M status=progress
+sudo dd if=revo-os-v0.4.0.img of=/dev/sdX bs=4M status=progress
 ```
 
 Plug the USB into any UEFI x86_64 machine, enable UEFI boot, and Revo boots.
@@ -122,7 +122,7 @@ For a complete breakdown, see [`docs/FOLDER_STRUCTURE.md`](docs/FOLDER_STRUCTURE
 
 ## Technical Specifications
 
-- **Kernel:** Linux 6.12.94 (Alpine virt, EFI stub enabled)
+- **Kernel:** Linux 6.12.94 (custom `tinyconfig` build, 4.5 MB compressed)
 - **Userspace:** Busybox 1.37.0 (306 applets, statically linked)
 - **Container Runtime:** containerd (static, stripped) + runc (static) + revocker Docker CLI shim
 - **Package Streaming:** revo-fs daemon (FUSE + BitTorrent DHT, 300 KB)
@@ -130,7 +130,7 @@ For a complete breakdown, see [`docs/FOLDER_STRUCTURE.md`](docs/FOLDER_STRUCTURE
 - **Architecture:** x86_64 only
 - **Boot:** UEFI native (CONFIG_EFI_STUB=y)
 - **Partitioning:** GPT (EFI System Partition + ext4 data)
-- **Compressed size:** 12 MB (tar.gz)
+- **Compressed size:** 8 MB (tar.gz)
 - **RAM requirement:** 256 MB minimum, 1 GB recommended
 
 ---
@@ -142,7 +142,7 @@ For a complete breakdown, see [`docs/FOLDER_STRUCTURE.md`](docs/FOLDER_STRUCTURE
 | v0.1.0 | ✅ Bootable kernel + shell | 13 MB |
 | v0.2.0 | ✅ Static containerd + runc (Docker built-in) | 15 MB |
 | v0.3.0 | ✅ revo-fs: on-demand package streaming | 12 MB |
-| v0.4.0 | Custom-compiled kernel (`tinyconfig` base) | 8 MB |
+| v0.4.0 | ✅ Custom-compiled kernel (`tinyconfig` base) | 8 MB |
 | v1.0.0 | Full Ubuntu feature parity via overlay mesh | 10 MB |
 
 ---

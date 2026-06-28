@@ -4,7 +4,7 @@
 
 set -e
 BUILD_DIR="$(cd "$(dirname "$0")" && pwd)"
-REVO_IMG="$BUILD_DIR/revo-os-v0.3.0.img"
+REVO_IMG="$BUILD_DIR/revo-os-v0.4.0.img"
 
 echo "=== Revo OS USB Creator ==="
 echo ""

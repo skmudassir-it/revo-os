@@ -1,6 +1,6 @@
 # Revo OS — Development Details
 
-**Version:** 0.3.0 · **Author:** Mudassir  
+**Version:** 0.4.0 · **Author:** Mudassir  
 
 This document provides in-depth technical explanations of every design decision, algorithm, and implementation detail in Revo OS. It is written for developers who want to understand not just *what* was built, but *why* and *how*.
 
@@ -365,7 +365,7 @@ ENTRY_1 (Data):
 setup-usb.sh executes these steps in order:
 
   1. LOSETUP: Attach image to loopback device
-     sudo losetup -P -f revo-os-v0.3.0.img
+     sudo losetup -P -f revo-os-v0.4.0.img
      The -P flag auto-creates partition devices (loop0p1, loop0p2)
      
   2. MKFS: Format both partitions

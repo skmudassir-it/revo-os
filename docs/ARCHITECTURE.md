@@ -1,6 +1,6 @@
 # Revo OS — Architecture
 
-**Version:** 0.3.0 · **Author:** Mudassir · **June 2026**
+**Version:** 0.4.0 · **Author:** Mudassir · **June 2026**
 
 ---
 
@@ -41,23 +41,24 @@ Revo OS is organized into three distinct layers, each with a well-defined bounda
 │  Kernel extracts this into a tmpfs at boot                  │
 │  Entirely in-memory, read-only after boot                    │
 │                                                              │
-│  ─── NOT IN CORE (streamed by revo-fs) ───                  │
-│  Python 3.12, Node.js 22, git, nginx, gcc, ...              │
-│  All available on first invocation via DHT mesh             │
-│                                                              │
 ├──────────────────────────────────────────────────────────────┤
 │                    LAYER 0: KERNEL                           │
 │                                                              │
-│  Linux 6.12.94-virt (Alpine build)                           │
-│  Format: bzImage, x86 boot executable (12 MB compressed)     │
+│  Linux 6.12.94 (custom `tinyconfig` build)                   │
+│  Format: bzImage, x86 boot executable (4.5 MB compressed)    │
 │  Key built-in features:                                      │
 │    CONFIG_EFI_STUB=y      → Kernel acts as UEFI executable   │
-│    CONFIG_EFI_HANDOVER=y  → UEFI handover protocol           │
 │    CONFIG_CGROUPS=y       → Container primitives             │
 │    CONFIG_NAMESPACES=y    → Process isolation                │
 │    CONFIG_NVME_CORE=y     → NVMe storage support             │
-│    CONFIG_EXT4_FS=m       → ext4 as loadable module          │
-│    CONFIG_OVERLAY_FS=m    → OverlayFS as module              │
+│    CONFIG_EXT4_FS=y       → ext4 built-in (no module needed) │
+│    CONFIG_OVERLAY_FS=y    → OverlayFS built-in               │
+│                                                              │
+│  Config strategy: `make tinyconfig` base (~500 options)      │
+│  + selective enablement of only what Revo requires.          │
+│  Alpine virt kernel: 12 MB, ~2,800 options.                  │
+│  Revo tinyconfig kernel: 4.5 MB, ~500 options.               │
+│  62% size reduction.                                         │
 │                                                              │
 ├──────────────────────────────────────────────────────────────┤
 │                    HARDWARE                                   │
@@ -231,18 +232,18 @@ Key design choices:
 
 ## 5. Kernel Configuration Strategy
 
-The Alpine `linux-virt` kernel used in Revo v0.1.0 has approximately 2,800 configuration options enabled. The full Revo vision (targeting 8-10 MB kernel) would reduce this to approximately 500 options using `make tinyconfig` as a base.
+The custom Revo kernel compiled from `make tinyconfig` has approximately 500 configuration options enabled, down from Alpine's ~2,800. The full Revo vision targets this ultra-minimal build to achieve the 8 MB total system size.
 
 ### Built-In vs Module Decision
 
 | Feature | Config | Rationale |
 |---------|--------|-----------|
-| cgroups v2 | `=y` (built-in) | Required for future Docker support |
+| cgroups v2 | `=y` (built-in) | Required for Docker container support |
 | namespaces | `=y` (built-in) | Required for container isolation |
-| NVMe core | `=y` (built-in) | Required to mount the ESP during early boot |
+| NVMe core | `=y` (built-in) | Required to mount storage during early boot |
 | devtmpfs | `=y` (built-in) | Auto-creates /dev nodes without udev |
-| ext4 | `=m` (module) | Not needed until after ESP is mounted |
-| overlayfs | `=m` (module) | Required for Docker image layering |
+| ext4 | `=y` (built-in) | Data partition — no module overhead |
+| overlayfs | `=y` (built-in) | Docker image layering — no module overhead |
 | e1000 | `=m` (module) | Network driver; loaded after boot |
 | virtio | `=m` (module) | VM para-virtualized devices |
 
@@ -260,7 +261,7 @@ The `CONFIG_EFI_STUB=y` feature is what makes Revo bootable without a separate b
 
 ```
 0x0000000000000000  ┌──────────────────────┐
-                    │  Kernel code (.text)  │  ~8 MB
+                    │  Kernel code (.text)  │  ~3.5 MB
 0x0000000000800000  ├──────────────────────┤
                     │  Kernel data (.data)  │  ~2 MB
                     ├──────────────────────┤
