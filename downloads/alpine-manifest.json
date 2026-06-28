@@ -1,0 +1,146 @@
+{
+  "version": "3.24.1",
+  "base_url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases",
+  "variants": {
+    "standard": {
+      "description": "Standard ISO — boots to shell, ideal for servers and custom installs",
+      "device_types": ["desktop", "server", "vm", "laptop"]
+    },
+    "extended": {
+      "description": "Extended ISO — includes extra firmware and drivers for broader hardware support",
+      "device_types": ["desktop", "laptop", "server"]
+    },
+    "netboot": {
+      "description": "Netboot tarball — kernel + initramfs for PXE/network booting",
+      "device_types": ["server", "embedded"]
+    },
+    "virt": {
+      "description": "Virtual ISO — optimized for virtual machines (QEMU, VirtualBox, Hyper-V)",
+      "device_types": ["vm", "cloud"]
+    },
+    "rpi": {
+      "description": "Raspberry Pi image — pre-built disk image for Raspberry Pi devices",
+      "device_types": ["raspberry-pi"]
+    },
+    "minirootfs": {
+      "description": "Mini root filesystem — minimal rootfs tarball for containers and chroots",
+      "device_types": ["container", "embedded", "chroot"]
+    },
+    "uboot": {
+      "description": "U-Boot tarball — for ARM boards with U-Boot bootloader",
+      "device_types": ["embedded", "arm-board"]
+    },
+    "xen": {
+      "description": "Xen ISO — optimized for Xen hypervisor",
+      "device_types": ["vm"]
+    }
+  },
+  "architectures": {
+    "x86_64": ["standard", "extended", "netboot", "virt", "minirootfs", "xen"],
+    "x86": ["standard", "extended", "netboot", "virt", "minirootfs"],
+    "aarch64": ["standard", "netboot", "virt", "rpi", "minirootfs", "uboot"],
+    "armv7": ["standard", "netboot", "virt", "rpi", "minirootfs", "uboot"],
+    "armhf": ["netboot", "rpi", "minirootfs"],
+    "ppc64le": ["standard", "netboot", "minirootfs"],
+    "s390x": ["standard", "netboot", "minirootfs"],
+    "riscv64": ["standard", "minirootfs", "uboot"],
+    "loongarch64": ["standard", "minirootfs"]
+  },
+  "files": [
+    {"arch":"x86_64","variant":"standard","file":"alpine-standard-3.24.1-x86_64.iso","type":"iso"},
+    {"arch":"x86_64","variant":"extended","file":"alpine-extended-3.24.1-x86_64.iso","type":"iso"},
+    {"arch":"x86_64","variant":"netboot","file":"alpine-netboot-3.24.1-x86_64.tar.gz","type":"tar.gz"},
+    {"arch":"x86_64","variant":"virt","file":"alpine-virt-3.24.1-x86_64.iso","type":"iso"},
+    {"arch":"x86_64","variant":"minirootfs","file":"alpine-minirootfs-3.24.1-x86_64.tar.gz","type":"tar.gz"},
+    {"arch":"x86_64","variant":"xen","file":"alpine-xen-3.24.1-x86_64.iso","type":"iso"},
+    {"arch":"x86","variant":"standard","file":"alpine-standard-3.24.1-x86.iso","type":"iso"},
+    {"arch":"x86","variant":"extended","file":"alpine-extended-3.24.1-x86.iso","type":"iso"},
+    {"arch":"x86","variant":"netboot","file":"alpine-netboot-3.24.1-x86.tar.gz","type":"tar.gz"},
+    {"arch":"x86","variant":"virt","file":"alpine-virt-3.24.1-x86.iso","type":"iso"},
+    {"arch":"x86","variant":"minirootfs","file":"alpine-minirootfs-3.24.1-x86.tar.gz","type":"tar.gz"},
+    {"arch":"aarch64","variant":"standard","file":"alpine-standard-3.24.1-aarch64.iso","type":"iso"},
+    {"arch":"aarch64","variant":"netboot","file":"alpine-netboot-3.24.1-aarch64.tar.gz","type":"tar.gz"},
+    {"arch":"aarch64","variant":"virt","file":"alpine-virt-3.24.1-aarch64.iso","type":"iso"},
+    {"arch":"aarch64","variant":"rpi","file":"alpine-rpi-3.24.1-aarch64.tar.gz","type":"tar.gz"},
+    {"arch":"aarch64","variant":"rpi","file":"alpine-rpi-3.24.1-aarch64.img.gz","type":"img.gz"},
+    {"arch":"aarch64","variant":"minirootfs","file":"alpine-minirootfs-3.24.1-aarch64.tar.gz","type":"tar.gz"},
+    {"arch":"aarch64","variant":"uboot","file":"alpine-uboot-3.24.1-aarch64.tar.gz","type":"tar.gz"},
+    {"arch":"armv7","variant":"standard","file":"alpine-standard-3.24.1-armv7.iso","type":"iso"},
+    {"arch":"armv7","variant":"netboot","file":"alpine-netboot-3.24.1-armv7.tar.gz","type":"tar.gz"},
+    {"arch":"armv7","variant":"virt","file":"alpine-virt-3.24.1-armv7.iso","type":"iso"},
+    {"arch":"armv7","variant":"rpi","file":"alpine-rpi-3.24.1-armv7.tar.gz","type":"tar.gz"},
+    {"arch":"armv7","variant":"rpi","file":"alpine-rpi-3.24.1-armv7.img.gz","type":"img.gz"},
+    {"arch":"armv7","variant":"minirootfs","file":"alpine-minirootfs-3.24.1-armv7.tar.gz","type":"tar.gz"},
+    {"arch":"armv7","variant":"uboot","file":"alpine-uboot-3.24.1-armv7.tar.gz","type":"tar.gz"},
+    {"arch":"armhf","variant":"netboot","file":"alpine-netboot-3.24.1-armhf.tar.gz","type":"tar.gz"},
+    {"arch":"armhf","variant":"rpi","file":"alpine-rpi-3.24.1-armhf.tar.gz","type":"tar.gz"},
+    {"arch":"armhf","variant":"rpi","file":"alpine-rpi-3.24.1-armhf.img.gz","type":"img.gz"},
+    {"arch":"armhf","variant":"minirootfs","file":"alpine-minirootfs-3.24.1-armhf.tar.gz","type":"tar.gz"},
+    {"arch":"ppc64le","variant":"standard","file":"alpine-standard-3.24.1-ppc64le.iso","type":"iso"},
+    {"arch":"ppc64le","variant":"netboot","file":"alpine-netboot-3.24.1-ppc64le.tar.gz","type":"tar.gz"},
+    {"arch":"ppc64le","variant":"minirootfs","file":"alpine-minirootfs-3.24.1-ppc64le.tar.gz","type":"tar.gz"},
+    {"arch":"s390x","variant":"standard","file":"alpine-standard-3.24.1-s390x.iso","type":"iso"},
+    {"arch":"s390x","variant":"netboot","file":"alpine-netboot-3.24.1-s390x.tar.gz","type":"tar.gz"},
+    {"arch":"s390x","variant":"minirootfs","file":"alpine-minirootfs-3.24.1-s390x.tar.gz","type":"tar.gz"},
+    {"arch":"riscv64","variant":"standard","file":"alpine-standard-3.24.1-riscv64.iso","type":"iso"},
+    {"arch":"riscv64","variant":"minirootfs","file":"alpine-minirootfs-3.24.1-riscv64.tar.gz","type":"tar.gz"},
+    {"arch":"riscv64","variant":"uboot","file":"alpine-uboot-3.24.1-riscv64.tar.gz","type":"tar.gz"},
+    {"arch":"loongarch64","variant":"standard","file":"alpine-standard-3.24.1-loongarch64.iso","type":"iso"},
+    {"arch":"loongarch64","variant":"minirootfs","file":"alpine-minirootfs-3.24.1-loongarch64.tar.gz","type":"tar.gz"}
+  ],
+  "checksums": {
+    "available": true,
+    "format": "{file}.sha256",
+    "gpg": "{file}.asc"
+  },
+  "device_guide": {
+    "x86_64_desktop_laptop": {
+      "download": "alpine-extended-3.24.1-x86_64.iso",
+      "install": "Flash to USB with dd, Rufus, or balenaEtcher. Boot from USB in UEFI mode.",
+      "arch": "x86_64",
+      "variant": "extended"
+    },
+    "x86_64_server_vm": {
+      "download": "alpine-virt-3.24.1-x86_64.iso",
+      "install": "Attach ISO in QEMU/VirtualBox/Hyper-V. Boot and run setup-alpine.",
+      "arch": "x86_64",
+      "variant": "virt"
+    },
+    "raspberry_pi_5": {
+      "download": "alpine-rpi-3.24.1-aarch64.img.gz",
+      "install": "gunzip and dd to SD card. Insert into Pi and power on.",
+      "arch": "aarch64",
+      "variant": "rpi"
+    },
+    "raspberry_pi_3_4": {
+      "download": "alpine-rpi-3.24.1-aarch64.img.gz",
+      "install": "gunzip and dd to SD card. Insert into Pi and power on.",
+      "arch": "aarch64",
+      "variant": "rpi"
+    },
+    "raspberry_pi_0_1": {
+      "download": "alpine-rpi-3.24.1-armhf.img.gz",
+      "install": "gunzip and dd to SD card. Insert into Pi and power on.",
+      "arch": "armhf",
+      "variant": "rpi"
+    },
+    "container_docker": {
+      "download": "alpine-minirootfs-3.24.1-x86_64.tar.gz",
+      "install": "docker import alpine-minirootfs-3.24.1-x86_64.tar.gz alpine:custom",
+      "arch": "x86_64",
+      "variant": "minirootfs"
+    },
+    "embedded_arm_board": {
+      "download": "alpine-uboot-3.24.1-aarch64.tar.gz",
+      "install": "Extract to SD card, configure U-Boot to boot from it.",
+      "arch": "aarch64",
+      "variant": "uboot"
+    },
+    "network_boot": {
+      "download": "alpine-netboot-3.24.1-x86_64.tar.gz",
+      "install": "Extract and serve via TFTP + HTTP for PXE boot.",
+      "arch": "x86_64",
+      "variant": "netboot"
+    }
+  }
+}

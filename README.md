@@ -65,6 +65,27 @@ sudo dd if=revo-os-v0.3.0.img of=/dev/sdX bs=4M status=progress
 
 Plug the USB into any UEFI x86_64 machine, enable UEFI boot, and Revo boots.
 
+### Download for Other Devices
+
+Revo ships with a download tool to fetch Alpine Linux base images for any supported device:
+
+```bash
+# Interactive menu — pick your device
+./downloads/download.sh
+
+# Quick download for specific devices
+./downloads/download.sh --device pi5      # Raspberry Pi 5
+./downloads/download.sh --device pi0      # Raspberry Pi Zero/1
+./downloads/download.sh --device server   # VM / Server
+./downloads/download.sh --device arm      # ARM embedded boards
+./downloads/download.sh --device container # Docker import
+
+# List all 40+ available variants across 9 architectures
+./downloads/download.sh --list
+```
+
+Supported: x86_64, x86, aarch64, armv7, armhf, ppc64le, s390x, riscv64, loongarch64. See [`downloads/`](downloads/) for the full manifest.
+
 ---
 
 ## Repository Structure
@@ -76,6 +97,7 @@ Plug the USB into any UEFI x86_64 machine, enable UEFI boot, and Revo boots.
 | `src/modules/` | Essential kernel modules (ext4, overlay, virtio, e1000) |
 | `src/containerd/` | Static containerd + runc binaries, revocker Docker CLI shim |
 | `src/revo-fs/` | On-demand package streaming daemon (FUSE + BitTorrent DHT) |
+| `downloads/` | Alpine Linux download tool — fetch ISOs for any device/arch |
 | `scripts/` | Image builder, USB setup automation |
 | `docs/` | Full documentation suite |
 | `dist/` | Prebuilt initramfs + containerd + revo-fs binaries |
