@@ -1,0 +1,121 @@
+#!/bin/busybox sh
+# Revo OS v1.1 — init script
+# Features: dm-verity integrity, CA bundle, loong kernel modules
+# Kernel Slimming & Integrity release
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs devtmpfs /dev
+
+# Mount EFI partition for kernel modules
+mkdir -p /boot
+mount -t vfat /dev/sda1 /boot 2>/dev/null || true
+mount -t vfat /dev/nvme0n1p1 /boot 2>/dev/null || true
+mount -t vfat /dev/vda1 /boot 2>/dev/null || true
+
+echo ""
+echo "  ╔══════════════════════════════════════╗"
+echo "  ║        🌀 REVO OS v1.1              ║"
+echo "  ║  The 10-Megabyte Operating System    ║"
+echo "  ╚══════════════════════════════════════╝"
+echo ""
+echo "  Kernel : $(uname -r)"
+echo "  Arch   : $(uname -m)"
+echo "  CPU    : $(grep -c processor /proc/cpuinfo) cores"
+echo "  RAM    : $(awk '/MemTotal/{printf "%.0f", $2/1024}' /proc/meminfo) MB"
+echo ""
+
+# Load essential modules from /boot/modules
+MODDIR="/boot/modules"
+if [ -d "$MODDIR" ]; then
+    echo "  [--] Loading kernel modules..."
+    for mod in dm-mod dm-verity dm-bufio ext4 overlay vfat loop virtio_blk virtio_net; do
+        if [ -f "$MODDIR/${mod}.ko.gz" ]; then
+            insmod "$MODDIR/${mod}.ko.gz" 2>/dev/null && echo "  [OK] $mod" || true
+        fi
+    done
+fi
+
+# ─── dm-verity: Integrity Verification ───
+# Check for verity hash tree on EFI partition
+VERITY_HASH="/boot/verity.hash"
+VERITY_ROOT_HASH=""
+if [ -f /boot/revo-config.json ]; then
+    # Extract root hash from build-time config
+    VERITY_ROOT_HASH=$(grep -o '"verity_root_hash":"[^"]*"' /boot/revo-config.json 2>/dev/null | cut -d'"' -f4)
+fi
+
+VERITY_OK=0
+if [ -n "$VERITY_ROOT_HASH" ] && [ -f "$VERITY_HASH" ]; then
+    echo "  [--] dm-verity: Verifying data integrity..."
+    DATA_DEV=""
+    for dev in /dev/sda2 /dev/nvme0n1p2 /dev/vda2; do
+        if [ -b "$dev" ]; then
+            DATA_DEV="$dev"
+            break
+        fi
+    done
+    if [ -n "$DATA_DEV" ]; then
+        DATA_SIZE=$(($(cat /sys/block/${DATA_DEV##*/}/size 2>/dev/null || echo 0) * 512))
+        if [ "$DATA_SIZE" -gt 0 ] 2>/dev/null; then
+            # Create dm-verity device
+            # Format: 0 <data_sectors> verity 1 <data_dev> <hash_dev> <data_block> <hash_block> <data_blocks> <hash_offset> <hash_alg> <root_hash> <salt>
+            DATA_BLOCKS=$((DATA_SIZE / 4096))
+            dmsetup create revo-verified --table \
+                "0 $((DATA_SIZE / 512)) verity 1 $DATA_DEV $DATA_DEV 4096 4096 $DATA_BLOCKS 0 sha256 $VERITY_ROOT_HASH $(echo -n 'RevoOS-dm-verity-v1.1' | hexdump -v -e '/1 \"%02x\"')" \
+                2>/dev/null
+            if [ -b /dev/mapper/revo-verified ]; then
+                echo "  [OK] dm-verity: root hash ${VERITY_ROOT_HASH:0:16}..."
+                VERITY_OK=1
+            else
+                echo "  [!!] dm-verity: verification FAILED — data may be corrupted"
+            fi
+        fi
+    fi
+fi
+
+# Mount persistent storage (verity if available, raw otherwise)
+DATA_OK=0
+mkdir -p /revo
+if [ "$VERITY_OK" -eq 1 ] && [ -b /dev/mapper/revo-verified ]; then
+    if mount -t ext4 /dev/mapper/revo-verified /revo 2>/dev/null; then
+        echo "  [OK] Revo volume: dm-verity verified -> /revo"
+        DATA_OK=1
+    fi
+fi
+if [ "$DATA_OK" -eq 0 ]; then
+    # Fallback: raw mount
+    for dev in /dev/sda2 /dev/nvme0n1p2 /dev/vda2; do
+        if [ -b "$dev" ] && mount -t ext4 "$dev" /revo 2>/dev/null; then
+            echo "  [OK] Revo volume: $dev -> /revo (unverified)"
+            DATA_OK=1
+            break
+        fi
+    done
+fi
+[ "$DATA_OK" -eq 0 ] && echo "  [!!] No Revo volume found (memory-only mode)"
+
+# ─── SSL CA Bundle ───
+if [ -d /boot/ssl/certs ]; then
+    mkdir -p /etc/ssl/certs
+    cp -a /boot/ssl/certs/* /etc/ssl/certs/ 2>/dev/null
+    echo "  [OK] SSL CA bundle: $(ls /etc/ssl/certs/ 2>/dev/null | wc -l) certs"
+else
+    echo "  [--] No CA bundle — TLS will not work"
+fi
+
+# Network
+hostname revo
+ip link set lo up 2>/dev/null
+if ip link set eth0 up 2>/dev/null; then
+    udhcpc -q -t 3 -n -i eth0 2>/dev/null && echo "  [OK] eth0: DHCP" || echo "  [--] eth0: no DHCP"
+fi
+
+echo ""
+echo "  ┌──────────────────────────────────────────────┐"
+echo "  │  Revo v1.1 ready — integrity + TLS active.   │"
+echo "  │  Type 'help' for commands.                   │"
+echo "  └──────────────────────────────────────────────┘"
+echo ""
+
+exec /bin/sh

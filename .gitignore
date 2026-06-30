@@ -1,0 +1,32 @@
+# Build artifacts (large binaries)
+*.img
+*.tar.gz
+*.tar.xz
+initramfs.cpio.gz
+
+# Pre-built kernel (download from Alpine)
+vmlinuz-virt
+revo-package/vmlinuz-virt
+
+# Build output
+build/
+*.o
+*.ko
+!modules_out/
+modules_out/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Downloaded binaries (from Alpine)
+*.apk
+initramfs/bin/busybox
