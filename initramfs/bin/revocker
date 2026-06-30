@@ -1,0 +1,75 @@
+#!/bin/busybox sh
+# revocker — Docker CLI shim for Revo OS v1.2.0
+# Translates common Docker commands to containerd/ctr + runc equivalents
+# With fallback to native Docker if available on Revo volume
+
+CONTAINERD_SOCK="/run/containerd/containerd.sock"
+
+usage() {
+    echo "revocker — Revo Docker CLI shim v1.2.0"
+    echo ""
+    echo "Commands:"
+    echo "  run <image> [cmd]      Run a container"
+    echo "  ps                      List running containers"
+    echo "  images                  List pulled images"
+    echo "  pull <image>            Pull an image"
+    echo "  stop <container>        Stop a container"
+    echo "  rm <container>          Remove a container"
+    echo "  exec <container> <cmd>  Execute command in container"
+    echo "  info                    Show containerd status"
+    echo ""
+    echo "Managed by containerd via $CONTAINERD_SOCK"
+}
+
+CMD="${1:-}"
+shift 2>/dev/null || true
+
+case "$CMD" in
+    run)
+        IMAGE="$1"; shift 2>/dev/null || true
+        [ -z "$IMAGE" ] && { echo "Usage: revocker run <image> [cmd]"; exit 1; }
+        # Pull + run via ctr
+        ctr image pull "$IMAGE" 2>/dev/null || { echo "Pull failed: $IMAGE"; exit 1; }
+        ctr run --rm -t "$IMAGE" "revo-$$" "$@" 2>/dev/null || {
+            # Fallback: try docker if on Revo volume
+            if [ -x /revo/bin/docker ]; then
+                /revo/bin/docker run --rm -it "$IMAGE" "$@"
+            else
+                echo "Container runtime unavailable"
+                exit 1
+            fi
+        }
+        ;;
+    ps)
+        ctr containers list 2>/dev/null || echo "No containers"
+        ;;
+    images)
+        ctr images list 2>/dev/null || echo "No images"
+        ;;
+    pull)
+        ctr image pull "$1" 2>/dev/null || echo "Pull failed"
+        ;;
+    stop)
+        ctr task kill "$1" 2>/dev/null || echo "Stop failed"
+        ;;
+    rm)
+        ctr containers delete "$1" 2>/dev/null || echo "Remove failed"
+        ;;
+    exec)
+        CID="$1"; shift
+        ctr task exec -t "$CID" "$@" 2>/dev/null || echo "Exec failed"
+        ;;
+    info|status)
+        ctr version 2>/dev/null
+        echo ""
+        ctr plugins list 2>/dev/null
+        ;;
+    ""|help|-h|--help)
+        usage
+        ;;
+    *)
+        echo "revocker: unknown command '$CMD'"
+        usage
+        exit 1
+        ;;
+esac

@@ -1,13 +1,13 @@
 #!/bin/busybox sh
-# Revo OS v1.1.0 — init script
-# Features: dm-verity integrity, CA bundle, kernel modules
-# Bootable Core with Integrity & TLS release
+# Revo OS v1.2.0 — init script
+# Features: dm-verity integrity, CA bundle, containerd container runtime
+# Container Runtime Built-In release
 
 mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devtmpfs devtmpfs /dev
 
-# Mount EFI partition for kernel modules
+# Mount EFI partition for kernel modules + containerd binaries
 mkdir -p /boot
 mount -t vfat /dev/sda1 /boot 2>/dev/null || true
 mount -t vfat /dev/nvme0n1p1 /boot 2>/dev/null || true
@@ -15,7 +15,7 @@ mount -t vfat /dev/vda1 /boot 2>/dev/null || true
 
 echo ""
 echo "  ╔══════════════════════════════════════╗"
-echo "  ║        🌀 REVO OS v1.1.0            ║"
+echo "  ║        🌀 REVO OS v1.2.0            ║"
 echo "  ║  The 10-Megabyte Operating System    ║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
@@ -37,11 +37,9 @@ if [ -d "$MODDIR" ]; then
 fi
 
 # ─── dm-verity: Integrity Verification ───
-# Check for verity hash tree on EFI partition
 VERITY_HASH="/boot/verity.hash"
 VERITY_ROOT_HASH=""
 if [ -f /boot/revo-config.json ]; then
-    # Extract root hash from build-time config
     VERITY_ROOT_HASH=$(grep -o '"verity_root_hash":"[^"]*"' /boot/revo-config.json 2>/dev/null | cut -d'"' -f4)
 fi
 
@@ -50,46 +48,35 @@ if [ -n "$VERITY_ROOT_HASH" ] && [ -f "$VERITY_HASH" ]; then
     echo "  [--] dm-verity: Verifying data integrity..."
     DATA_DEV=""
     for dev in /dev/sda2 /dev/nvme0n1p2 /dev/vda2; do
-        if [ -b "$dev" ]; then
-            DATA_DEV="$dev"
-            break
-        fi
+        if [ -b "$dev" ]; then DATA_DEV="$dev"; break; fi
     done
     if [ -n "$DATA_DEV" ]; then
         DATA_SIZE=$(($(cat /sys/block/${DATA_DEV##*/}/size 2>/dev/null || echo 0) * 512))
         if [ "$DATA_SIZE" -gt 0 ] 2>/dev/null; then
-            # Create dm-verity device
-            # Format: 0 <data_sectors> verity 1 <data_dev> <hash_dev> <data_block> <hash_block> <data_blocks> <hash_offset> <hash_alg> <root_hash> <salt>
             DATA_BLOCKS=$((DATA_SIZE / 4096))
             dmsetup create revo-verified --table \
-                "0 $((DATA_SIZE / 512)) verity 1 $DATA_DEV $DATA_DEV 4096 4096 $DATA_BLOCKS 0 sha256 $VERITY_ROOT_HASH $(echo -n 'RevoOS-dm-verity-v1.1' | hexdump -v -e '/1 \"%02x\"')" \
+                "0 $((DATA_SIZE / 512)) verity 1 $DATA_DEV $DATA_DEV 4096 4096 $DATA_BLOCKS 0 sha256 $VERITY_ROOT_HASH $(echo -n 'RevoOS-dm-verity-v1.2' | hexdump -v -e '/1 \"%02x\"')" \
                 2>/dev/null
             if [ -b /dev/mapper/revo-verified ]; then
                 echo "  [OK] dm-verity: root hash ${VERITY_ROOT_HASH:0:16}..."
                 VERITY_OK=1
             else
-                echo "  [!!] dm-verity: verification FAILED — data may be corrupted"
+                echo "  [!!] dm-verity: verification FAILED"
             fi
         fi
     fi
 fi
 
-# Mount persistent storage (verity if available, raw otherwise)
+# Mount persistent storage
 DATA_OK=0
 mkdir -p /revo
 if [ "$VERITY_OK" -eq 1 ] && [ -b /dev/mapper/revo-verified ]; then
-    if mount -t ext4 /dev/mapper/revo-verified /revo 2>/dev/null; then
-        echo "  [OK] Revo volume: dm-verity verified -> /revo"
-        DATA_OK=1
-    fi
+    mount -t ext4 /dev/mapper/revo-verified /revo 2>/dev/null && { echo "  [OK] Revo volume: verified -> /revo"; DATA_OK=1; }
 fi
 if [ "$DATA_OK" -eq 0 ]; then
-    # Fallback: raw mount
     for dev in /dev/sda2 /dev/nvme0n1p2 /dev/vda2; do
         if [ -b "$dev" ] && mount -t ext4 "$dev" /revo 2>/dev/null; then
-            echo "  [OK] Revo volume: $dev -> /revo (unverified)"
-            DATA_OK=1
-            break
+            echo "  [OK] Revo volume: $dev -> /revo (unverified)"; DATA_OK=1; break
         fi
     done
 fi
@@ -104,6 +91,44 @@ else
     echo "  [--] No CA bundle — TLS will not work"
 fi
 
+# ─── v1.2.0: Container Runtime (containerd + runc) ───
+CONTAINERD_OK=0
+mkdir -p /run/containerd
+
+# Check for containerd on ESP or Revo volume
+for cdir in /boot/containerd /revo/containerd /usr/bin; do
+    if [ -x "$cdir/containerd" ] && [ -x "$cdir/runc" ]; then
+        # Link binaries
+        ln -sf "$cdir/containerd" /usr/bin/containerd 2>/dev/null
+        ln -sf "$cdir/runc" /usr/bin/runc 2>/dev/null
+        [ -x "$cdir/containerd-shim-runc-v2" ] && ln -sf "$cdir/containerd-shim-runc-v2" /usr/bin/containerd-shim-runc-v2 2>/dev/null
+
+        # Create minimal containerd config
+        mkdir -p /etc/containerd
+        if [ ! -f /etc/containerd/config.toml ]; then
+            containerd config default > /etc/containerd/config.toml 2>/dev/null || true
+        fi
+
+        # Start containerd in background
+        containerd &
+        CONTAINERD_PID=$!
+        sleep 1
+
+        if kill -0 $CONTAINERD_PID 2>/dev/null; then
+            echo "  [OK] containerd: PID $CONTAINERD_PID (from $cdir)"
+            CONTAINERD_OK=1
+        else
+            echo "  [!!] containerd failed to start"
+        fi
+        break
+    fi
+done
+
+if [ "$CONTAINERD_OK" -eq 0 ]; then
+    echo "  [--] containerd: not found — download via scripts/download-containerd.sh"
+    echo "  [--] revocker Docker CLI: available (requires containerd)"
+fi
+
 # Network
 hostname revo
 ip link set lo up 2>/dev/null
@@ -112,10 +137,11 @@ if ip link set eth0 up 2>/dev/null; then
 fi
 
 echo ""
-echo "  ┌──────────────────────────────────────────────┐"
-echo "  │  Revo v1.1 ready — integrity + TLS active.   │"
-echo "  │  Type 'help' for commands.                   │"
-echo "  └──────────────────────────────────────────────┘"
+echo "  ┌──────────────────────────────────────────────────────┐"
+echo "  │  Revo v1.2 ready — integrity + TLS + containers.     │"
+echo "  │  revocker run alpine:latest sh                       │"
+echo "  │  Type 'help' for commands.                           │"
+echo "  └──────────────────────────────────────────────────────┘"
 echo ""
 
 exec /bin/sh

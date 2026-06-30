@@ -4,9 +4,9 @@
 
 set -e
 BUILD_DIR="$(cd "$(dirname "$0")" && pwd)"
-REVO_IMG="$BUILD_DIR/revo-os-v1.1.0.img"
+REVO_IMG="$BUILD_DIR/revo-os-v1.2.0.img"
 
-echo "=== Revo OS v1.1.0 USB Creator ==="
+echo "=== Revo OS v1.2.0 USB Creator ==="
 echo ""
 
 # Check if image exists
@@ -40,6 +40,7 @@ sudo mount "${LOOP_DEV}p1" /mnt/revo-esp
 sudo mkdir -p /mnt/revo-esp/EFI/BOOT
 sudo mkdir -p /mnt/revo-esp/modules
 sudo mkdir -p /mnt/revo-esp/ssl/certs
+sudo mkdir -p /mnt/revo-esp/containerd
 
 # Kernel + initramfs
 sudo cp "$BUILD_DIR/vmlinuz-virt" /mnt/revo-esp/EFI/BOOT/BOOTX64.EFI
@@ -53,6 +54,12 @@ sudo cp "$BUILD_DIR/../initramfs/etc/ssl/certs/"*.crt /mnt/revo-esp/ssl/certs/ 2
 
 # Revo config (version + verity params)
 sudo cp "$BUILD_DIR/../initramfs/etc/revo/config.json" /mnt/revo-esp/revo-config.json 2>/dev/null || true
+
+# Container runtime (containerd + runc) — optional, from download-containerd.sh
+if [ -d "$BUILD_DIR/../build/containerd" ]; then
+    sudo cp "$BUILD_DIR/../build/containerd/"* /mnt/revo-esp/containerd/ 2>/dev/null
+    echo "  [OK] containerd + runc copied to ESP"
+fi
 echo ""
 
 # Step 4: Generate dm-verity hash tree (optional, requires Python + openssl)
@@ -79,7 +86,7 @@ echo ""
 # Step 5: Boot loader config
 echo "Step 5: Creating boot loader config..."
 sudo tee /mnt/revo-esp/loader/entries/revo.conf > /dev/null << 'CONFEOF'
-title   Revo OS v1.1.0
+title   Revo OS v1.2.0
 linux   /EFI/BOOT/BOOTX64.EFI
 initrd  /EFI/BOOT/initrd.img
 options console=tty0 console=ttyS0 quiet
