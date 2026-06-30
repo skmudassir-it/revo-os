@@ -1,43 +1,39 @@
-# 🌀 Revo OS — The 8-Megabyte Operating System
+# 🌀 Revo OS v1.1.0 — The 13-Megabyte AI-Native Operating System
 
 **Developed and coded by [Mudassir](https://github.com/skmudassir-it)**  
-*Conceived June 2026 · Built from scratch · Open source under MIT*
+*Conceived June 2026 · Built from scratch · Kernel 6.12.94 · x86_64 UEFI*
 
-[![OS Size](https://img.shields.io/badge/size-8_MB-00cc66)](https://github.com/skmudassir-it/revo-os)
-[![Kernel](https://img.shields.io/badge/kernel-tinyconfig_4.5MB-blue)](https://www.kernel.org)
+[![OS Size](https://img.shields.io/badge/size-13_MB-00cc66)](https://github.com/skmudassir-it/revo-os)
+[![Kernel](https://img.shields.io/badge/kernel-6.12.94-blue)](https://www.kernel.org)
+[![Status](https://img.shields.io/badge/status-v1.1.0-brightgreen)](https://github.com/skmudassir-it/revo-os)
+[![dm-verity](https://img.shields.io/badge/integrity-dm--verity-orange)](https://github.com/skmudassir-it/revo-os)
+[![SSL](https://img.shields.io/badge/TLS-CA_bundle-2496ED)](https://github.com/skmudassir-it/revo-os)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.4.0-brightgreen)](https://github.com/skmudassir-it/revo-os/releases)
-[![Docker](https://img.shields.io/badge/docker-built--in-2496ED)](https://github.com/skmudassir-it/revo-os)
-[![Streaming](https://img.shields.io/badge/packages-on--demand_streaming-7B42D2)](https://github.com/skmudassir-it/revo-os)
 
 ---
 
 ## Project Overview
 
-**Revo OS** is an ultra-minimal operating system designed to answer a single, provocative question: *how small can a fully functional Linux OS be while remaining genuinely useful?* The answer, as of v0.4.0, is **8 megabytes** — with a custom-compiled `tinyconfig` kernel, Docker built-in, and on-demand package streaming.
+**Revo OS** answers a single provocative question: *how small can a fully functional Linux OS be while remaining genuinely useful?* The answer, as of v1.1.0, is **13 megabytes** — a bootable UEFI-native operating system with cryptographic integrity verification, a TLS-ready CA bundle, and a self-contained kernel build pipeline targeting 10 MB.
 
-Revo is not a toy. It is a real, bootable, UEFI-native operating system built on a custom-compiled Linux 6.12.94 kernel from `make tinyconfig` — slashing the kernel from Alpine's 12 MB to just **4.5 MB**. It ships with a Busybox userspace of 306 Unix utilities, built-in Docker via containerd + runc, and **revo-fs** on-demand package streaming. The entire system compresses to 8 MB.
+Revo boots from a single immutable image smaller than a high-resolution photograph. It is not a toy — it is a real operating system built on Linux 6.12.94 with a Busybox userspace of 306 Unix utilities, dm-verity data integrity, and a minimal SSL certificate store.
 
-### Why Revo Exists
+### What Revo IS (v1.1.0)
 
-Modern operating systems have grown to tens of gigabytes. Ubuntu Server 24.04 is over 2 GB compressed. Even Alpine Linux, the gold standard of minimalism, is 130 MB for a full rootfs. Revo demonstrates that the Linux kernel itself can be stripped to its absolute essentials without sacrificing the core capabilities that make an OS useful: process management, filesystem support, networking, and an interactive shell.
-
-This project is a personal exploration in OS minimalism by **Mudassir** — a study in what happens when every byte is interrogated, every kernel config option justified, and every binary stripped to its bare function.
-
-### What Revo Is (and Isn't)
-
-**Revo IS:**
 - A bootable UEFI x86_64 operating system
-- A minimal Linux environment with a usable shell
-- A demonstration of extreme OS compaction
-- A Docker / OCI container runtime (containerd + runc built-in)
-- On-demand package streaming via revo-fs (BitTorrent DHT mesh)
+- A Busybox-powered Linux environment with an interactive shell
+- dm-verity cryptographic integrity verification at boot
+- 30 essential root CA certificates for TLS support
+- 11 kernel modules (ext4, overlay, virtio, dm-verity stack)
+- A source-compile kernel pipeline targeting 3–4 MB vmlinuz (`revo-tiny.config`)
 - A foundation for embedded, container, and edge computing
 
-**Revo IS NOT (yet):**
+### What Revo IS NOT (yet)
+
 - A desktop OS with a GUI
 - A production server OS
-- A drop-in Ubuntu replacement
+- A Docker/container runtime (planned — see future updates)
+- A drop-in Ubuntu replacement (planned — see future updates)
 
 ---
 
@@ -46,7 +42,7 @@ This project is a personal exploration in OS minimalism by **Mudassir** — a st
 ### Test in QEMU (30 seconds)
 
 ```bash
-tar xzf revo-os-v0.4.0.tar.gz
+tar xzf revo-os-v1.1.0.tar.gz
 cd revo-package
 qemu-system-x86_64 -m 2G \
   -kernel vmlinuz-virt \
@@ -57,93 +53,127 @@ qemu-system-x86_64 -m 2G \
 ### Flash to USB
 
 ```bash
-cd revo-package
-python3 scripts/build-image.py    # Creates GPT disk image
-sudo ./scripts/setup-usb.sh       # Formats + copies boot files
-sudo dd if=revo-os-v0.4.0.img of=/dev/sdX bs=4M status=progress
+python3 build-image.py           # → revo-os-v1.1.0.img (128 MB GPT)
+sudo ./setup-usb.sh              # Format ESP + copy kernel/initramfs/modules/certs
+sudo dd if=revo-os-v1.1.0.img of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
-Plug the USB into any UEFI x86_64 machine, enable UEFI boot, and Revo boots.
-
-### Download for Other Devices
-
-Revo ships with a download tool to fetch Alpine Linux base images for any supported device:
+### Build Custom Kernel (10 MB target)
 
 ```bash
-# Interactive menu — pick your device
-./downloads/download.sh
-
-# Quick download for specific devices
-./downloads/download.sh --device pi5      # Raspberry Pi 5
-./downloads/download.sh --device pi0      # Raspberry Pi Zero/1
-./downloads/download.sh --device server   # VM / Server
-./downloads/download.sh --device arm      # ARM embedded boards
-./downloads/download.sh --device container # Docker import
-
-# List all 40+ available variants across 9 architectures
-./downloads/download.sh --list
+sudo apt install flex bison libelf-dev libssl-dev bc   # prerequisites
+./scripts/build-kernel.sh 6.12.21                       # → build/vmlinuz-revo (~4 MB)
 ```
 
-Supported: x86_64, x86, aarch64, armv7, armhf, ppc64le, s390x, riscv64, loongarch64. See [`downloads/`](downloads/) for the full manifest.
+---
+
+## Boot Experience
+
+```
+  ╔══════════════════════════════════════╗
+  ║        🌀 REVO OS v1.1.0            ║
+  ║  The 10-Megabyte Operating System    ║
+  ╚══════════════════════════════════════╝
+
+  Kernel : 6.12.94-0-virt
+  Arch   : x86_64
+  CPU    : 4 cores
+  RAM    : 2048 MB
+
+  [OK] dm-mod
+  [OK] dm-verity
+  [OK] ext4
+  [OK] overlay
+  [OK] virtio_blk
+  [OK] virtio_net
+  [--] dm-verity: Verifying data integrity...
+  [OK] Revo volume: /dev/vda2 -> /revo
+  [OK] SSL CA bundle: 30 certs
+  [OK] eth0: DHCP
+
+  ┌──────────────────────────────────────────────┐
+  │  Revo v1.1 ready — integrity + TLS active.   │
+  └──────────────────────────────────────────────┘
+```
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│                  USER APPLICATIONS                   │
+│  ┌─────────────────┐  ┌──────────────────────────┐   │
+│  │  Native Revo    │  │  Docker / OCI Containers  │   │
+│  │  (revo-fs)      │  │  (planned)                │   │
+│  └────────┬────────┘  └────────────┬──────────────┘   │
+├───────────┼────────────────────────┼──────────────────┤
+│           │     REVO CORE (initramfs, 660 KB)        │
+│  ┌────────┴──────┐  ┌──────────────┴─────────────┐   │
+│  │   dm-verity   │  │     SSL CA bundle (30)     │   │
+│  └────────┬──────┘  └──────────────┬─────────────┘   │
+│           └────────────┬───────────┘                  │
+│                   revod (PID 1)                       │
+├────────────────────────┼──────────────────────────────┤
+│           REVO KERNEL (vmlinuz, 12 MB pre-built)     │
+│  cgroups v2 │ namespaces │ overlayfs │ ext4          │
+│  DM_VERITY  │ NVMe       │ virtio    │ net           │
+└──────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Repository Structure
 
 | Directory | Purpose |
-|-----------|---------|
-| `src/kernel/` | Kernel configuration (`.config` for 6.12.94-virt) |
-| `src/initramfs/` | Init script, system config, user database |
-| `src/modules/` | Essential kernel modules (ext4, overlay, virtio, e1000) |
-| `src/containerd/` | Static containerd + runc binaries, revocker Docker CLI shim |
-| `src/revo-fs/` | On-demand package streaming daemon (FUSE + BitTorrent DHT) |
-| `downloads/` | Alpine Linux download tool — fetch ISOs for any device/arch |
-| `scripts/` | Image builder, USB setup automation |
-| `docs/` | Full documentation suite |
-| `dist/` | Prebuilt initramfs + containerd + revo-fs binaries |
-
-For a complete breakdown, see [`docs/FOLDER_STRUCTURE.md`](docs/FOLDER_STRUCTURE.md).
+|---|---|
+| `initramfs/` | Init script, system config, CA certificates |
+| `scripts/` | Kernel build pipeline, dm-verity hash generator |
+| `src/kernel/` | `revo-tiny.config` — minimal kernel config (~550 options) |
+| `revo-package/` | Distribution artifacts (build-image, setup-usb, README) |
+| `revo-os-blueprint.md` | Full conceptual blueprint for the AI-native vision |
+| `revo-os-kernel-blueprint.md` | Kernel-specific design document |
 
 ---
 
-## Documentation
+## Size Budget
 
-| Document | Contents |
-|----------|----------|
-| [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full system architecture, boot sequence, component interaction |
-| [`BUILD.md`](docs/BUILD.md) | How to build from source, kernel compilation, initramfs creation |
-| [`DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Design decisions, implementation details, algorithms |
-| [`SPECS.md`](docs/SPECS.md) | Technical specifications, dependencies, system requirements |
-| [`FOLDER_STRUCTURE.md`](docs/FOLDER_STRUCTURE.md) | Complete directory tree with file-by-file explanations |
-| [`FILE_TYPES.md`](docs/FILE_TYPES.md) | Explanation of each file type in the repository |
-| [`USER_GUIDE.md`](docs/USER_GUIDE.md) | End-user guide for booting and using Revo |
+| Component | Size |
+|---|---|
+| Kernel (vmlinuz-virt, Alpine pre-built) | 12.0 MB |
+| Initramfs (cpio.gz — busybox + init + CA certs) | 660 KB |
+| Kernel modules (11 × .ko.gz) | 1,050 KB |
+| **Total (tarball)** | **~13 MB** |
+| Target (source-compiled kernel) | ~4 MB vmlinuz → **~5 MB total** |
 
 ---
 
-## Technical Specifications
+## Future Updates
 
-- **Kernel:** Linux 6.12.94 (custom `tinyconfig` build, 4.5 MB compressed)
-- **Userspace:** Busybox 1.37.0 (306 applets, statically linked)
-- **Container Runtime:** containerd (static, stripped) + runc (static) + revocker Docker CLI shim
-- **Package Streaming:** revo-fs daemon (FUSE + BitTorrent DHT, 300 KB)
-- **libc:** musl (via Busybox static build)
-- **Architecture:** x86_64 only
-- **Boot:** UEFI native (CONFIG_EFI_STUB=y)
-- **Partitioning:** GPT (EFI System Partition + ext4 data)
-- **Compressed size:** 8 MB (tar.gz)
-- **RAM requirement:** 256 MB minimum, 1 GB recommended
+| # | Feature | Description |
+|---|---|---|
+| 1 | **Container runtime built-in** | Static containerd + runc compiled into initramfs (~2 MB). Docker-compatible CLI shim with zero daemon overhead |
+| 2 | **Ornet kernel AI inference** | `ornet.ko` kernel module (~500 KB) — model memory manager, tensor dispatch, ring buffer. Ornith-1 9B GGUF on dedicated RevoAI volume |
+| 3 | **revo-fs package streaming** | FUSE-like overlay mesh filesystem — BitTorrent-backed on-demand package streaming. Any Ubuntu package available, never pre-installed |
+| 4 | **Secure remote access** | Dropbear SSH server (~200 KB), WireGuard kernel module, IPv6 dual-stack |
+| 5 | **GPU acceleration** | CUDA/Vulkan passthrough for Ornet inference. Multi-model hot-swap on RevoAI volume. Transparent CPU/GPU tensor offload |
+| 6 | **Immutable updates** | Cryptographic signing of core image. A/B partition updates with automatic rollback. Binary delta updates |
+| 7 | **Observability dashboard** | Web-based management console. Structured JSON logging from kernel + revod + containerd. Prometheus metrics endpoint |
+| 8 | **Multi-architecture** | ARM64 (aarch64) port — Raspberry Pi 5, AWS Graviton, Apple Silicon VMs. RISC-V preview |
+| 9 | **Multi-node orchestration** | Revo Mesh peer discovery protocol. Distributed Ornet — split inference across nodes. Lightweight Kubernetes shim |
+| 10 | **AI-First boot** | Kernel awakens Ornet before filesystem mount — model ready before PID 1. Explicit model/system separation with dedicated integrity verification |
 
 ---
 
-## Roadmap
+## Design Philosophy
 
-| Version | Goal | Target Size |
-|---------|------|-------------|
-| v0.1.0 | ✅ Bootable kernel + shell | 13 MB |
-| v0.2.0 | ✅ Static containerd + runc (Docker built-in) | 15 MB |
-| v0.3.0 | ✅ revo-fs: on-demand package streaming | 12 MB |
-| v0.4.0 | ✅ Custom-compiled kernel (`tinyconfig` base) | 8 MB |
-| v1.0.0 | Full Ubuntu feature parity via overlay mesh | 10 MB |
+| Principle | Meaning |
+|---|---|
+| **AI-First Boot** | Ornet inference engine awakens before any filesystem mounts — the model is ready before userspace init |
+| **Immutable Core, Fluid Everything Else** | 10 MB core is cryptographically signed and read-only; all writable state lives on the Revo volume |
+| **Overlay Mesh, Not Package Manager** | No `apt`, no `dnf` — BitTorrent-backed overlay mesh streams packages on first use |
+| **Container-Native Userspace** | Primary process model is containers; even native tools run in thin container shims |
+| **Explicit Model/System Separation** | The AI model is firmware, not software — dedicated partition with its own integrity verification |
 
 ---
 
@@ -159,7 +189,7 @@ The Linux kernel is GPL-2.0. Busybox is GPL-2.0. Alpine-provided kernel modules 
 
 **Author & Developer:** Mudassir ([@skmudassir-it](https://github.com/skmudassir-it))  
 **Kernel:** [Linux LTS](https://www.kernel.org) (6.12.94, Alpine virt build)  
-**Userspace:** [Busybox](https://busybox.net) (1.37.0, Alpine static build)  
+**Userspace:** [Busybox](https://busybox.net) (306 applets, Alpine static build)  
 **Inspiration:** Alpine Linux, TinyCore Linux, Buildroot, Linux From Scratch  
 
 ---

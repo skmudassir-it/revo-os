@@ -4,9 +4,9 @@
 
 set -e
 BUILD_DIR="$(cd "$(dirname "$0")" && pwd)"
-REVO_IMG="$BUILD_DIR/revo-os-v1.0.0.img"
+REVO_IMG="$BUILD_DIR/revo-os-v1.1.0.img"
 
-echo "=== Revo OS v1.0.0 USB Creator ==="
+echo "=== Revo OS v1.1.0 USB Creator ==="
 echo ""
 
 # Check if image exists
@@ -79,7 +79,7 @@ echo ""
 # Step 5: Boot loader config
 echo "Step 5: Creating boot loader config..."
 sudo tee /mnt/revo-esp/loader/entries/revo.conf > /dev/null << 'CONFEOF'
-title   Revo OS v1.0.0
+title   Revo OS v1.1.0
 linux   /EFI/BOOT/BOOTX64.EFI
 initrd  /EFI/BOOT/initrd.img
 options console=tty0 console=ttyS0 quiet

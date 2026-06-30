@@ -1,4 +1,4 @@
-# Revo OS v1.0.0
+# Revo OS v1.1.0
 
 **The 13-Megabyte AI-Native Operating System — Bootable USB Image**
 
