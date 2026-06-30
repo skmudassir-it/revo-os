@@ -1,7 +1,7 @@
 #!/bin/busybox sh
-# Revo OS v1.1 — init script
-# Features: dm-verity integrity, CA bundle, loong kernel modules
-# Kernel Slimming & Integrity release
+# Revo OS v1.0.0 — init script
+# Features: dm-verity integrity, CA bundle, kernel modules
+# Bootable Core with Integrity release
 
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -15,7 +15,7 @@ mount -t vfat /dev/vda1 /boot 2>/dev/null || true
 
 echo ""
 echo "  ╔══════════════════════════════════════╗"
-echo "  ║        🌀 REVO OS v1.1              ║"
+echo "  ║        🌀 REVO OS v1.0.0            ║"
 echo "  ║  The 10-Megabyte Operating System    ║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
@@ -113,7 +113,7 @@ fi
 
 echo ""
 echo "  ┌──────────────────────────────────────────────┐"
-echo "  │  Revo v1.1 ready — integrity + TLS active.   │"
+echo "  │  Revo v1.0 ready — integrity + TLS active.   │"
 echo "  │  Type 'help' for commands.                   │"
 echo "  └──────────────────────────────────────────────┘"
 echo ""

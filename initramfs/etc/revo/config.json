@@ -1,1 +1,1 @@
-{"hostname":"revo","version":"1.1.0","features":["dm-verity","ca-bundle","kernel-slimming"],"verity_root_hash":"","verity_salt":"RevoOS-dm-verity-v1.1","verity_data_blocks":4096,"verity_hash_alg":"sha256"}
+{"hostname":"revo","version":"1.0.0","features":["dm-verity","ca-bundle","kernel-slimming"],"verity_root_hash":"","verity_salt":"RevoOS-dm-verity-v1.0","verity_data_blocks":4096,"verity_hash_alg":"sha256"}
