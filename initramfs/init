@@ -1,7 +1,7 @@
 #!/bin/busybox sh
-# Revo OS v1.3.1 — init script
-# Features: dm-verity integrity, CA bundle, containerd, Ornet kernel module
-# Ornet: Kernel module release (ornet.ko — MMM + Ring Buffer)
+# Revo OS v1.4.0 — init script
+# Features: dm-verity integrity, CA bundle, containerd, Ornet AI, revo-fs streaming
+# revo-fs: Package Streaming — No apt, no dnf, stream on first use
 
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -15,8 +15,8 @@ mount -t vfat /dev/vda1 /boot 2>/dev/null || true
 
 echo ""
 echo "  ╔══════════════════════════════════════╗"
-echo "  ║        🌀 REVO OS v1.3.1            ║"
-echo "  ║   Ornet Kernel Module — AI-Native     ║"
+echo "  ║        🌀 REVO OS v1.4.0            ║"
+echo "  ║  Package Streaming — Stream Anything ║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
 echo "  Kernel : $(uname -r)"
@@ -29,7 +29,7 @@ echo ""
 MODDIR="/boot/modules"
 if [ -d "$MODDIR" ]; then
     echo "  [--] Loading kernel modules..."
-    for mod in dm-mod dm-verity dm-bufio ext4 overlay vfat loop virtio_blk virtio_net; do
+    for mod in dm-mod dm-verity dm-bufio ext4 overlay vfat loop virtio_blk virtio_net squashfs; do
         if [ -f "$MODDIR/${mod}.ko.gz" ]; then
             insmod "$MODDIR/${mod}.ko.gz" 2>/dev/null && echo "  [OK] $mod" || true
         fi
@@ -202,6 +202,40 @@ if [ "$ORNET_OK" -eq 0 ]; then
     echo "  [--] Run 'ornetd download' after boot to fetch Ornith-1 9B"
 fi
 
+# ─── v1.4.0: revo-fs — Package Streaming ───
+REVOFS_OK=0
+mkdir -p /revo/pkgs /revo/overlay /usr/local/bin /revo/pkgs/db /revo/pkgs/mesh 2>/dev/null || true
+
+if [ -x /bin/revo-fs ]; then
+    echo "  [--] revo-fs: Package streaming daemon v1.4.0"
+    echo "  [--] \"No apt, no dnf — packages stream on first use\""
+
+    # Mount overlay tmpfs for package mounts
+    mount -t tmpfs tmpfs /revo/overlay 2>/dev/null || true
+    mount -t tmpfs tmpfs /usr/local 2>/dev/null || true
+
+    # Start revo-fs daemon
+    revo-fs start &
+    sleep 1
+    if [ -f /run/revo-fs.pid ] && kill -0 "$(cat /run/revo-fs.pid)" 2>/dev/null; then
+        echo "  [OK] revo-fs: daemon started (PID $(cat /run/revo-fs.pid))"
+        echo "  [OK] Package mesh: $MESH_BOOTSTRAP"
+        REVOFS_OK=1
+    else
+        echo "  [!!] revo-fs failed to start"
+    fi
+
+    # Ensure /usr/local/bin is in PATH
+    export PATH="/usr/local/bin:$PATH"
+else
+    echo "  [--] revo-fs: not found in initramfs"
+fi
+
+if [ "$REVOFS_OK" -eq 0 ]; then
+    echo "  [--] revo-fs: NO-OP mode — package streaming unavailable"
+    echo "  [--] Run 'revo-fs start' after placing binary"
+fi
+
 # Network
 hostname revo
 ip link set lo up 2>/dev/null
@@ -211,11 +245,12 @@ fi
 
 echo ""
 echo "  ┌──────────────────────────────────────────────────────────┐"
-echo "  │  Revo v1.3.1 — containers + kernel AI module.           │"
+echo "  │  Revo v1.4 — stream packages, run containers, infer AI. │"
 if [ "$ORNET_OK" -eq 1 ]; then
 echo "  │  ornetd infer \"Hello, who are you?\"                      │"
-else
-echo "  │  ornetd download    (fetch Ornith-1 9B)                  │"
+fi
+if [ "$REVOFS_OK" -eq 1 ]; then
+echo "  │  revo-fs install python3    (stream on first use)       │"
 fi
 echo "  │  revocker run alpine:latest sh                           │"
 echo "  │  Type 'help' for commands.                               │"

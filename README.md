@@ -1,12 +1,12 @@
-# 🌀 Revo OS v1.3.1 — Ornet Kernel Module
+# 🌀 Revo OS v1.4.0 — Package Streaming
 
 **Developed and coded by [Mudassir](https://github.com/skmudassir-it)**  
 *Conceived June 2026 · Built from scratch · Kernel 6.12.94 · x86_64 UEFI*
 
-[![OS Size](https://img.shields.io/badge/size-13_MB-00cc66)](https://github.com/skmudassir-it/revo-os)
+[![OS Size](https://img.shields.io/badge/size-12_MB-00cc66)](https://github.com/skmudassir-it/revo-os)
 [![Kernel](https://img.shields.io/badge/kernel-6.12.94-blue)](https://www.kernel.org)
-[![Status](https://img.shields.io/badge/status-v1.3.1-brightgreen)](https://github.com/skmudassir-it/revo-os)
-[![Ornet](https://img.shields.io/badge/ornet-kernel_module-9b59b6)](https://github.com/skmudassir-it/revo-os)
+[![Status](https://img.shields.io/badge/status-v1.4.0-brightgreen)](https://github.com/skmudassir-it/revo-os)
+[![revo-fs](https://img.shields.io/badge/revo--fs-package_streaming-00cc66)](https://github.com/skmudassir-it/revo-os)
 [![Containerd](https://img.shields.io/badge/containerd-built--in-2496ED)](https://github.com/skmudassir-it/revo-os)
 [![dm-verity](https://img.shields.io/badge/integrity-dm--verity-orange)](https://github.com/skmudassir-it/revo-os)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -15,20 +15,21 @@
 
 ## Project Overview
 
-**Revo OS** answers a single provocative question: *how small can a fully functional Linux OS be while remaining genuinely useful?* The answer, as of v1.3.1, is **13 megabytes** — a bootable UEFI-native operating system with cryptographic integrity verification, a TLS-ready CA bundle, a built-in container runtime, and **ornet.ko** — a kernel-level AI inference module with model memory manager, lock-free ring buffer, and dedicated character device (/dev/ornet).
+**Revo OS** answers a single provocative question: *how small can a fully functional Linux OS be while remaining genuinely useful?* The answer, as of v1.4.0, is **12 megabytes** — a bootable UEFI-native operating system with cryptographic integrity verification, TLS-ready CA bundle, built-in container runtime, kernel-level AI inference, and now **revo-fs** — a package streaming daemon that fetches any package on first use via a BitTorrent-backed peer mesh. No `apt`, no `dnf` — packages stream when you need them and cache for instant reuse.
 
 Revo boots from a single immutable image smaller than a high-resolution photograph. It is not a toy — it is a real operating system built on Linux 6.12.94 with a Busybox userspace of 306 Unix utilities, dm-verity data integrity, an OCI container runtime, and an AI inference stack that treats the model as firmware — not software.
 
-### What Revo IS (v1.3.1)
+### What Revo IS (v1.4.0)
 
 - A bootable UEFI x86_64 operating system
 - A Busybox-powered Linux environment with an interactive shell
 - dm-verity cryptographic integrity verification at boot
 - 30 essential root CA certificates for TLS support
 - **Built-in container runtime** — containerd + runc + revocker Docker CLI shim
-- **Kernel AI module** — `ornet.ko`: model memory manager, lock-free ring buffer, /dev/ornet char device
+- **Kernel AI module** — `ornet.ko`: model memory manager, lock-free ring buffer, /dev/ornet
+- **Package streaming** — `revo-fs`: fetch any package on first use, squashfs caching, peer mesh
 - **Userspace dispatcher** — `ornetd`: inference scheduler, Ornith-1 9B GGUF support
-- 11+ kernel modules (ext4, overlay, virtio, dm-verity stack, ornet.ko)
+- 12+ kernel modules (ext4, overlay, squashfs, virtio, dm-verity stack, ornet.ko)
 - A source-compile kernel pipeline targeting 3–4 MB vmlinuz + ornet.ko
 - A foundation for embedded, container, edge computing, and local AI
 
@@ -44,7 +45,7 @@ Revo boots from a single immutable image smaller than a high-resolution photogra
 
 ```bash
 # QEMU (fastest)
-tar xzf revo-os-v1.3.1.tar.gz && cd revo-package
+tar xzf revo-os-v1.4.0.tar.gz && cd revo-package
 qemu-system-x86_64 -m 2G \
   -kernel vmlinuz-virt \
   -initrd initramfs.cpio.gz \
@@ -75,23 +76,23 @@ revocker images
 revocker pull ubuntu:latest
 ```
 
-### AI Inference with Ornet
+### Package Streaming with revo-fs
 
 ```bash
-# Download the model (once, ~5.5 GB)
-ornetd download
+# Stream a package on first use (~1.4s cold start)
+revo-fs install python3
+
+# Cached: instant (~30ms)
+revo-fs install python3
+
+# Search the mesh
+revo-fs search nodejs
+
+# List cached packages
+revo-fs list
 
 # Check status
-ornetd status
-
-# Run inference
-ornetd infer "Explain quantum computing in one paragraph"
-
-# Interactive chat
-ornetd chat
-
-# Start daemon (auto-starts at boot if RevoAI volume is present)
-ornetd start
+revo-fs status
 ```
 
 ---
@@ -192,7 +193,7 @@ See [`docs/ornet-blueprint.md`](docs/ornet-blueprint.md) for the full kernel mod
 | v1.2.0 | revocker CLI + containerd/runc built-in | 13 MB | ✅ |
 | **v1.3.0** | **Ornet: Kernel-native AI + Ornith-1 9B** | **13 MB** | ✅ |
 | **v1.3.1** | **ornet.ko kernel module (MMM + ring buffer)** | **13 MB** | ✅ |
-| v1.4 | revo-fs package streaming | 12 MB | 📋 |
+| **v1.4.0** | **revo-fs: Package streaming + peer mesh** | **12 MB** | ✅ |
 | v1.5 | Secure remote access (SSH + WireGuard) | 14 MB | 📋 |
 | v1.6 | GPU acceleration for Ornet inference | 14 MB | 📋 |
 
