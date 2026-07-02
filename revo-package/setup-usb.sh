@@ -1,12 +1,12 @@
 #!/bin/bash
-# Revo OS v1.4.0 — USB Setup Script
+# Revo OS v1.5.0 — USB Setup Script
 # Creates a bootable Revo OS USB image with dm-verity + CA bundle
 
 set -e
 BUILD_DIR="$(cd "$(dirname "$0")" && pwd)"
-REVO_IMG="$BUILD_DIR/revo-os-v1.4.0.img"
+REVO_IMG="$BUILD_DIR/revo-os-v1.5.0.img"
 
-echo "=== Revo OS v1.4.0 USB Creator ==="
+echo "=== Revo OS v1.5.0 USB Creator ==="
 echo ""
 
 # Check if image exists

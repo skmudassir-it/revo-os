@@ -1,0 +1,56 @@
+#!/bin/busybox sh
+# Revo OS v1.5.0 — Service Supervision (rc.local)
+#
+# Simple watchdog that monitors critical services and restarts them
+# if they crash. Runs as a background daemon spawned by the init script.
+#
+# Supervised services:
+#   - dropbear (SSH)
+#   - containerd (containers)
+#   - revo-fs (package streaming)
+#   - ornetd (AI inference)
+#
+# Check interval: 10 seconds
+
+RC_LOG="/var/log/rc.local.log"
+CHECK_INTERVAL=10
+
+log() { echo "[rc.local] $(date '+%H:%M:%S') $*" >> "$RC_LOG" 2>/dev/null; }
+
+# ─── Service Definitions ───
+# Format: "name|pidfile|start_command|enabled_flag"
+
+SERVICES="
+dropbear|/run/dropbear.pid|dropbear -p ${SSH_PORT:-2222} -B -j -k|SSH_OK
+containerd|/run/containerd/containerd.pid|containerd|CONTAINERD_OK
+revo-fs|/run/revo-fs.pid|revo-fs start|REVOFS_OK
+ornetd|/run/ornetd.pid|MODEL_DIR=/revo/ai/models ornetd start|ORNET_OK
+"
+
+log "rc.local v1.5.0 — service supervision started (interval: ${CHECK_INTERVAL}s)"
+log "Supervising: $(echo "$SERVICES" | wc -l) services"
+
+# ─── Main loop ───
+while true; do
+    sleep "$CHECK_INTERVAL"
+    
+    echo "$SERVICES" | while IFS='|' read -r name pidfile start_cmd flag; do
+        [ -z "$name" ] && continue
+        
+        # Check if this service was enabled at boot
+        eval "enabled=\${$flag:-0}"
+        [ "$enabled" -eq 0 ] 2>/dev/null && continue
+        
+        # Check if process is alive
+        if [ -f "$pidfile" ]; then
+            local pid=$(cat "$pidfile" 2>/dev/null)
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                continue  # Service is healthy
+            fi
+        fi
+        
+        # Service is down — restart it
+        log "[RESTART] $name — process not found, restarting..."
+        eval "$start_cmd &"
+    done
+done

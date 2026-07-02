@@ -1,11 +1,12 @@
-# 🌀 Revo OS v1.4.0 — Package Streaming
+# 🌀 Revo OS v1.5.0 — Remote Access Server
 
 **Developed and coded by [Mudassir](https://github.com/skmudassir-it)**  
 *Conceived June 2026 · Built from scratch · Kernel 6.12.94 · x86_64 UEFI*
 
-[![OS Size](https://img.shields.io/badge/size-12_MB-00cc66)](https://github.com/skmudassir-it/revo-os)
-[![Kernel](https://img.shields.io/badge/kernel-6.12.94-blue)](https://www.kernel.org)
-[![Status](https://img.shields.io/badge/status-v1.4.0-brightgreen)](https://github.com/skmudassir-it/revo-os)
+[![OS Size](https://img.shields.io/badge/size-14_MB-00cc66)](https://github.com/skmudassir-it/revo-os)
+[![Status](https://img.shields.io/badge/status-v1.5.0-brightgreen)](https://github.com/skmudassir-it/revo-os)
+[![SSH](https://img.shields.io/badge/SSH-Dropbear-2496ED)](https://github.com/skmudassir-it/revo-os)
+[![WG](https://img.shields.io/badge/VPN-WireGuard-88171a)](https://github.com/skmudassir-it/revo-os)
 [![revo-fs](https://img.shields.io/badge/revo--fs-package_streaming-00cc66)](https://github.com/skmudassir-it/revo-os)
 [![Containerd](https://img.shields.io/badge/containerd-built--in-2496ED)](https://github.com/skmudassir-it/revo-os)
 [![dm-verity](https://img.shields.io/badge/integrity-dm--verity-orange)](https://github.com/skmudassir-it/revo-os)
@@ -194,7 +195,7 @@ See [`docs/ornet-blueprint.md`](docs/ornet-blueprint.md) for the full kernel mod
 | **v1.3.0** | **Ornet: Kernel-native AI + Ornith-1 9B** | **13 MB** | ✅ |
 | **v1.3.1** | **ornet.ko kernel module (MMM + ring buffer)** | **13 MB** | ✅ |
 | **v1.4.0** | **revo-fs: Package streaming + peer mesh** | **12 MB** | ✅ |
-| v1.5 | Secure remote access (SSH + WireGuard) | 14 MB | 📋 |
+| **v1.5.0** | **Remote Access: SSH + WireGuard + firewall** | **14 MB** | ✅ |
 | v1.6 | GPU acceleration for Ornet inference | 14 MB | 📋 |
 
 ---
