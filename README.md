@@ -1,12 +1,12 @@
-# 🌀 Revo OS v1.3.0 — Kernel-Native AI Inference
+# 🌀 Revo OS v1.3.1 — Ornet Kernel Module
 
 **Developed and coded by [Mudassir](https://github.com/skmudassir-it)**  
 *Conceived June 2026 · Built from scratch · Kernel 6.12.94 · x86_64 UEFI*
 
 [![OS Size](https://img.shields.io/badge/size-13_MB-00cc66)](https://github.com/skmudassir-it/revo-os)
 [![Kernel](https://img.shields.io/badge/kernel-6.12.94-blue)](https://www.kernel.org)
-[![Status](https://img.shields.io/badge/status-v1.3.0-brightgreen)](https://github.com/skmudassir-it/revo-os)
-[![Ornet](https://img.shields.io/badge/ornet-AI--native-9b59b6)](https://github.com/skmudassir-it/revo-os)
+[![Status](https://img.shields.io/badge/status-v1.3.1-brightgreen)](https://github.com/skmudassir-it/revo-os)
+[![Ornet](https://img.shields.io/badge/ornet-kernel_module-9b59b6)](https://github.com/skmudassir-it/revo-os)
 [![Containerd](https://img.shields.io/badge/containerd-built--in-2496ED)](https://github.com/skmudassir-it/revo-os)
 [![dm-verity](https://img.shields.io/badge/integrity-dm--verity-orange)](https://github.com/skmudassir-it/revo-os)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -15,20 +15,21 @@
 
 ## Project Overview
 
-**Revo OS** answers a single provocative question: *how small can a fully functional Linux OS be while remaining genuinely useful?* The answer, as of v1.3.0, is **13 megabytes** — a bootable UEFI-native operating system with cryptographic integrity verification, a TLS-ready CA bundle, a built-in container runtime, and now **kernel-native AI inference** powered by the Ornet subsystem and the Ornith-1 9B language model.
+**Revo OS** answers a single provocative question: *how small can a fully functional Linux OS be while remaining genuinely useful?* The answer, as of v1.3.1, is **13 megabytes** — a bootable UEFI-native operating system with cryptographic integrity verification, a TLS-ready CA bundle, a built-in container runtime, and **ornet.ko** — a kernel-level AI inference module with model memory manager, lock-free ring buffer, and dedicated character device (/dev/ornet).
 
 Revo boots from a single immutable image smaller than a high-resolution photograph. It is not a toy — it is a real operating system built on Linux 6.12.94 with a Busybox userspace of 306 Unix utilities, dm-verity data integrity, an OCI container runtime, and an AI inference stack that treats the model as firmware — not software.
 
-### What Revo IS (v1.3.0)
+### What Revo IS (v1.3.1)
 
 - A bootable UEFI x86_64 operating system
 - A Busybox-powered Linux environment with an interactive shell
 - dm-verity cryptographic integrity verification at boot
 - 30 essential root CA certificates for TLS support
 - **Built-in container runtime** — containerd + runc + revocker Docker CLI shim
-- **Kernel-native AI inference** — Ornet subsystem: `ornetd` dispatcher + Ornith-1 9B GGUF
+- **Kernel AI module** — `ornet.ko`: model memory manager, lock-free ring buffer, /dev/ornet char device
+- **Userspace dispatcher** — `ornetd`: inference scheduler, Ornith-1 9B GGUF support
 - 11+ kernel modules (ext4, overlay, virtio, dm-verity stack, ornet.ko)
-- A source-compile kernel pipeline targeting 3–4 MB vmlinuz
+- A source-compile kernel pipeline targeting 3–4 MB vmlinuz + ornet.ko
 - A foundation for embedded, container, edge computing, and local AI
 
 ### What Revo IS NOT (yet)
@@ -43,16 +44,16 @@ Revo boots from a single immutable image smaller than a high-resolution photogra
 
 ```bash
 # QEMU (fastest)
-tar xzf revo-os-v1.3.0.tar.gz && cd revo-package
+tar xzf revo-os-v1.3.1.tar.gz && cd revo-package
 qemu-system-x86_64 -m 2G \
   -kernel vmlinuz-virt \
   -initrd initramfs.cpio.gz \
   -append "console=ttyS0 quiet" -nographic
 
 # Flash to USB
-python3 build-image.py           # → revo-os-v1.3.0.img (128 MB)
+python3 build-image.py           # → revo-os-v1.3.1.img (128 MB)
 sudo ./setup-usb.sh              # Format + copy kernel/initramfs/modules/certs/containerd
-sudo dd if=revo-os-v1.3.0.img of=/dev/sdX bs=4M status=progress conv=fsync
+sudo dd if=revo-os-v1.3.1.img of=/dev/sdX bs=4M status=progress conv=fsync
 
 # Download container runtime
 ./scripts/download-containerd.sh  # → build/containerd/ (containerd + runc)
@@ -190,7 +191,7 @@ See [`docs/ornet-blueprint.md`](docs/ornet-blueprint.md) for the full kernel mod
 | v1.1.0 | dm-verity + CA bundle + kernel slim config | 13 MB | ✅ |
 | v1.2.0 | revocker CLI + containerd/runc built-in | 13 MB | ✅ |
 | **v1.3.0** | **Ornet: Kernel-native AI + Ornith-1 9B** | **13 MB** | ✅ |
-| v1.3.1 | ornet.ko kernel module (MMM + ring buffer) | 13 MB | 🔧 |
+| **v1.3.1** | **ornet.ko kernel module (MMM + ring buffer)** | **13 MB** | ✅ |
 | v1.4 | revo-fs package streaming | 12 MB | 📋 |
 | v1.5 | Secure remote access (SSH + WireGuard) | 14 MB | 📋 |
 | v1.6 | GPU acceleration for Ornet inference | 14 MB | 📋 |
@@ -201,14 +202,13 @@ See [`docs/ornet-blueprint.md`](docs/ornet-blueprint.md) for the full kernel mod
 
 | # | Feature | Description |
 |---|---|---|
-| 1 | **ornet.ko kernel module** | Compile the kernel-level AI module — model memory manager, tensor dispatch, ring buffer. Full blueprint in `docs/ornet-blueprint.md` |
-| 2 | **revo-fs package streaming** | FUSE overlay mesh filesystem — BitTorrent-backed on-demand packages. Any Ubuntu package, never pre-installed |
-| 3 | **Secure remote access** | Dropbear SSH server (~200 KB), WireGuard kernel module, IPv6 dual-stack |
-| 4 | **GPU acceleration** | CUDA/Vulkan passthrough for Ornet inference. Multi-model hot-swap. CPU/GPU tensor offload |
-| 5 | **Immutable updates** | Cryptographic signing of core image. A/B partition updates with automatic rollback. Binary delta updates |
-| 6 | **Observability dashboard** | Web-based management console. Structured JSON logging. Prometheus metrics endpoint |
-| 7 | **Multi-architecture** | ARM64 (aarch64) port — Raspberry Pi 5, AWS Graviton. RISC-V preview |
-| 8 | **Multi-node orchestration** | Revo Mesh peer discovery. Distributed Ornet — split inference across nodes. Lightweight Kubernetes shim |
+| 1 | **revo-fs package streaming** | FUSE overlay mesh filesystem — BitTorrent-backed on-demand packages. Any Ubuntu package, never pre-installed |
+| 2 | **Secure remote access** | Dropbear SSH server (~200 KB), WireGuard kernel module, IPv6 dual-stack |
+| 3 | **GPU acceleration** | CUDA/Vulkan passthrough for Ornet inference. Multi-model hot-swap. CPU/GPU tensor offload |
+| 4 | **Immutable updates** | Cryptographic signing of core image. A/B partition updates with automatic rollback. Binary delta updates |
+| 5 | **Observability dashboard** | Web-based management console. Structured JSON logging. Prometheus metrics endpoint |
+| 6 | **Multi-architecture** | ARM64 (aarch64) port — Raspberry Pi 5, AWS Graviton. RISC-V preview |
+| 7 | **Multi-node orchestration** | Revo Mesh peer discovery. Distributed Ornet — split inference across nodes. Lightweight Kubernetes shim |
 
 ---
 

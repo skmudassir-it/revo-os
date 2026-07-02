@@ -1,7 +1,7 @@
 #!/bin/busybox sh
-# Revo OS v1.3.0 — init script
-# Features: dm-verity integrity, CA bundle, containerd, Ornet AI inference
-# Ornet: Kernel-Native AI Inference release
+# Revo OS v1.3.1 — init script
+# Features: dm-verity integrity, CA bundle, containerd, Ornet kernel module
+# Ornet: Kernel module release (ornet.ko — MMM + Ring Buffer)
 
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -15,8 +15,8 @@ mount -t vfat /dev/vda1 /boot 2>/dev/null || true
 
 echo ""
 echo "  ╔══════════════════════════════════════╗"
-echo "  ║        🌀 REVO OS v1.3.0            ║"
-echo "  ║   Kernel-Native AI Inference — Ornet ║"
+echo "  ║        🌀 REVO OS v1.3.1            ║"
+echo "  ║   Ornet Kernel Module — AI-Native     ║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
 echo "  Kernel : $(uname -r)"
@@ -34,10 +34,22 @@ if [ -d "$MODDIR" ]; then
             insmod "$MODDIR/${mod}.ko.gz" 2>/dev/null && echo "  [OK] $mod" || true
         fi
     done
-    # v1.3.0: Try loading ornet.ko if available
-    if [ -f "$MODDIR/ornet.ko.gz" ]; then
-        insmod "$MODDIR/ornet.ko.gz" 2>/dev/null && echo "  [OK] ornet.ko (AI inference kernel module)" || true
-    fi
+# v1.3.1: Ornet kernel module — AI inference engine
+ORNET_MODULE="/boot/modules/ornet.ko.gz"
+if [ -f "$ORNET_MODULE" ]; then
+    insmod "$ORNET_MODULE" 2>/dev/null && {
+        echo "  [OK] ornet.ko: kernel module loaded — native inferencing"
+        # Create device node (major 240, minor 0)
+        mknod /dev/ornet c 240 0 2>/dev/null || true
+        chmod 666 /dev/ornet 2>/dev/null || true
+        HAS_ORNET_KO=1
+    } || {
+        echo "  [--] ornet.ko: load failed — check kernel log"
+        HAS_ORNET_KO=0
+    }
+else
+    HAS_ORNET_KO=0
+fi
 fi
 
 # ─── dm-verity: Integrity Verification ───
@@ -199,7 +211,7 @@ fi
 
 echo ""
 echo "  ┌──────────────────────────────────────────────────────────┐"
-echo "  │  Revo v1.3 ready — containers + AI inference.            │"
+echo "  │  Revo v1.3.1 — containers + kernel AI module.           │"
 if [ "$ORNET_OK" -eq 1 ]; then
 echo "  │  ornetd infer \"Hello, who are you?\"                      │"
 else

@@ -3,7 +3,7 @@
 import struct, os, uuid
 
 BUILD = "/home/shaik/revo-build"
-IMG = f"{BUILD}/revo-os-v1.3.0.img"
+IMG = f"{BUILD}/revo-os-v1.3.1.img"
 IMG_SIZE = 128 * 1024 * 1024  # 128 MB
 SECTOR = 512
 

@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-2.0
+# Kconfig — Ornet Kernel Module Configuration
+#
+# Integrates with the Linux kernel's menuconfig system.
+# Source this from the kernel's Kconfig or include as
+# an external module configuration.
+#
+# Usage in kernel Kconfig:
+#   source "drivers/char/ornet/Kconfig"
+
+config ORNET
+	tristate "Revo OS Ornet — Kernel-Native AI Inference"
+	depends on X86_64
+	depends on MODULES
+	select VMALLOC
+	help
+	  Ornet is Revo OS's kernel-level AI inference subsystem.
+	  It provides a character device (/dev/ornet) for zero-copy
+	  IPC between userspace inference clients and kernel-resident
+	  language models.
+
+	  This module includes:
+	    - Model Memory Manager (vmalloc + page pinning)
+	    - Lock-free ring buffer (SPSC, 4 × 4KB pages)
+	    - GGUF model loading via ioctl
+
+	  If unsure, say N.
+
+config ORNET_DEBUG
+	bool "Ornet debug output"
+	depends on ORNET
+	default n
+	help
+	  Enable verbose debug logging for the Ornet module.
+	  Includes ring buffer state dumps, page pinning
+	  statistics, and model loading progress.
+
+	  This adds ~2 KB to the module size. Say N for
+	  production use.
+
+config ORNET_MODEL_PATH
+	string "Auto-load model path"
+	depends on ORNET
+	default ""
+	help
+	  Path to a GGUF model file to load automatically
+	  when the ornet module is inserted. Leave empty
+	  to load manually via ioctl after boot.
+
+	  Example: /revo/ai/models/ornith-1.0-9b-Q4_K_M.gguf
+
+config ORNET_RING_SLOTS
+	int "Ring buffer slots"
+	depends on ORNET
+	default 64
+	range 16 256
+	help
+	  Number of slots in the request and response rings.
+	  More slots = higher throughput under burst load,
+	  but more memory. Each slot is 64 bytes.
+	  Default: 64 (4 KB ring pages).
