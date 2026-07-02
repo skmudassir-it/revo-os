@@ -31,4 +31,4 @@ These modules are built from:
 
 ## Future
 
-In Revo v1.0.0+, modules may be rebuilt from source with further size optimization (stripping debug sections, LTO, etc.).
+In Revo v1.3.0+, modules may be rebuilt from source with further size optimization (stripping debug sections, LTO, etc.).

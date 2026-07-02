@@ -1,7 +1,7 @@
 #!/bin/busybox sh
-# Revo OS v1.2.0 — init script
-# Features: dm-verity integrity, CA bundle, containerd container runtime
-# Container Runtime Built-In release
+# Revo OS v1.3.0 — init script
+# Features: dm-verity integrity, CA bundle, containerd, Ornet AI inference
+# Ornet: Kernel-Native AI Inference release
 
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -15,8 +15,8 @@ mount -t vfat /dev/vda1 /boot 2>/dev/null || true
 
 echo ""
 echo "  ╔══════════════════════════════════════╗"
-echo "  ║        🌀 REVO OS v1.2.0            ║"
-echo "  ║  The 10-Megabyte Operating System    ║"
+echo "  ║        🌀 REVO OS v1.3.0            ║"
+echo "  ║   Kernel-Native AI Inference — Ornet ║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
 echo "  Kernel : $(uname -r)"
@@ -34,6 +34,10 @@ if [ -d "$MODDIR" ]; then
             insmod "$MODDIR/${mod}.ko.gz" 2>/dev/null && echo "  [OK] $mod" || true
         fi
     done
+    # v1.3.0: Try loading ornet.ko if available
+    if [ -f "$MODDIR/ornet.ko.gz" ]; then
+        insmod "$MODDIR/ornet.ko.gz" 2>/dev/null && echo "  [OK] ornet.ko (AI inference kernel module)" || true
+    fi
 fi
 
 # ─── dm-verity: Integrity Verification ───
@@ -55,7 +59,7 @@ if [ -n "$VERITY_ROOT_HASH" ] && [ -f "$VERITY_HASH" ]; then
         if [ "$DATA_SIZE" -gt 0 ] 2>/dev/null; then
             DATA_BLOCKS=$((DATA_SIZE / 4096))
             dmsetup create revo-verified --table \
-                "0 $((DATA_SIZE / 512)) verity 1 $DATA_DEV $DATA_DEV 4096 4096 $DATA_BLOCKS 0 sha256 $VERITY_ROOT_HASH $(echo -n 'RevoOS-dm-verity-v1.2' | hexdump -v -e '/1 \"%02x\"')" \
+                "0 $((DATA_SIZE / 512)) verity 1 $DATA_DEV $DATA_DEV 4096 4096 $DATA_BLOCKS 0 sha256 $VERITY_ROOT_HASH $(echo -n 'RevoOS-dm-verity-v1.3' | hexdump -v -e '/1 \"%02x\"')" \
                 2>/dev/null
             if [ -b /dev/mapper/revo-verified ]; then
                 echo "  [OK] dm-verity: root hash ${VERITY_ROOT_HASH:0:16}..."
@@ -129,6 +133,63 @@ if [ "$CONTAINERD_OK" -eq 0 ]; then
     echo "  [--] revocker Docker CLI: available (requires containerd)"
 fi
 
+# ─── v1.3.0: Ornet — Kernel-Native AI Inference ───
+# Mount RevoAI volume (dedicated AI partition — firmware, not software)
+ORNET_OK=0
+mkdir -p /revo/ai/models 2>/dev/null || true
+
+for ai_dev in /dev/sda3 /dev/nvme0n1p3 /dev/vda3; do
+    if [ -b "$ai_dev" ]; then
+        mount -t ext4 "$ai_dev" /revo/ai 2>/dev/null && \
+            echo "  [OK] RevoAI volume: $ai_dev -> /revo/ai" && break
+    fi
+done
+
+# Check for ornetd dispatcher + model
+if [ -x /bin/ornetd ]; then
+    echo "  [--] Ornet: AI inference dispatcher v1.3.0"
+
+    # Check for kernel-level ornet module
+    if [ -e /dev/ornet ]; then
+        echo "  [OK] ornet.ko: kernel module loaded — native inferencing"
+        HAS_ORNET_KO=1
+    else
+        echo "  [--] ornet.ko: not loaded — userspace-only mode"
+        HAS_ORNET_KO=0
+    fi
+
+    # Check for Ornith-1 9B model
+    MODEL_PATH="/revo/ai/models/ornith-1.0-9b-Q4_K_M.gguf"
+    if [ -f "$MODEL_PATH" ]; then
+        MODEL_SIZE=$(du -h "$MODEL_PATH" 2>/dev/null | cut -f1)
+        echo "  [OK] Ornith-1 9B: $MODEL_SIZE — model firmware ready"
+        HAS_MODEL=1
+    else
+        echo "  [--] Ornith-1 9B: not downloaded — run 'ornetd download'"
+        echo "  [--] Needs ~5.5 GB on RevoAI volume"
+        HAS_MODEL=0
+    fi
+
+    # Start ornetd daemon if model is available
+    if [ "$HAS_MODEL" -eq 1 ]; then
+        MODEL_DIR=/revo/ai/models MODEL_FILE=ornith-1.0-9b-Q4_K_M.gguf ornetd start &
+        sleep 1
+        if [ -f /run/ornetd.pid ] && kill -0 "$(cat /run/ornetd.pid)" 2>/dev/null; then
+            echo "  [OK] ornetd: daemon started (PID $(cat /run/ornetd.pid))"
+            ORNET_OK=1
+        else
+            echo "  [!!] ornetd failed to start — check /var/log/ornetd.log"
+        fi
+    fi
+else
+    echo "  [--] ornetd: not found in initramfs"
+fi
+
+if [ "$ORNET_OK" -eq 0 ]; then
+    echo "  [--] Ornet: NO-OP mode — model or dispatcher missing"
+    echo "  [--] Run 'ornetd download' after boot to fetch Ornith-1 9B"
+fi
+
 # Network
 hostname revo
 ip link set lo up 2>/dev/null
@@ -137,11 +198,16 @@ if ip link set eth0 up 2>/dev/null; then
 fi
 
 echo ""
-echo "  ┌──────────────────────────────────────────────────────┐"
-echo "  │  Revo v1.2 ready — integrity + TLS + containers.     │"
-echo "  │  revocker run alpine:latest sh                       │"
-echo "  │  Type 'help' for commands.                           │"
-echo "  └──────────────────────────────────────────────────────┘"
+echo "  ┌──────────────────────────────────────────────────────────┐"
+echo "  │  Revo v1.3 ready — containers + AI inference.            │"
+if [ "$ORNET_OK" -eq 1 ]; then
+echo "  │  ornetd infer \"Hello, who are you?\"                      │"
+else
+echo "  │  ornetd download    (fetch Ornith-1 9B)                  │"
+fi
+echo "  │  revocker run alpine:latest sh                           │"
+echo "  │  Type 'help' for commands.                               │"
+echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
 
 exec /bin/sh

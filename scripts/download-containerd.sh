@@ -1,5 +1,5 @@
 #!/bin/sh
-# Revo OS v1.2.0 — Download Container Runtime
+# Revo OS v1.3.0 — Download Container Runtime
 # Fetches containerd + runc from Alpine community repo
 # Run this on the build host to prepare container runtime binaries
 

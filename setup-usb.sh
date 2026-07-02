@@ -1,13 +1,13 @@
 #!/bin/bash
-# Revo OS v1.1 — USB Setup Script
+# Revo OS v1.3 — USB Setup Script
 # Creates a bootable Revo OS USB image with dm-verity + CA bundle
 # (master copy — mirrors revo-package/setup-usb.sh)
 
 set -e
 BUILD_DIR="$(cd "$(dirname "$0")" && pwd)"
-REVO_IMG="$BUILD_DIR/revo-os-v1.2.0.img"
+REVO_IMG="$BUILD_DIR/revo-os-v1.3.0.img"
 
-echo "=== Revo OS v1.2.0 USB Creator ==="
+echo "=== Revo OS v1.3.0 USB Creator ==="
 echo ""
 
 if [ ! -f "$REVO_IMG" ]; then
@@ -57,7 +57,7 @@ echo ""
 
 echo "Step 5: Boot loader config..."
 sudo tee /mnt/revo-esp/loader/entries/revo.conf > /dev/null << 'CONFEOF'
-title   Revo OS v1.2.0
+title   Revo OS v1.3.0
 linux   /EFI/BOOT/BOOTX64.EFI
 initrd  /EFI/BOOT/initrd.img
 options console=tty0 console=ttyS0 quiet

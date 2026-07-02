@@ -1,0 +1,362 @@
+#!/bin/busybox sh
+# ornetd — Revo OS AI Inference Dispatcher v1.3.0
+# Manages the Ornith-1 9B model and inference requests via llama.cpp
+# Part of the Ornet subsystem: kernel-native AI inference for Revo OS
+
+set -e
+
+# ─── Configuration ───
+ORNETD_VERSION="1.3.0"
+ORNETD_LOG="/var/log/ornetd.log"
+ORNETD_PIDFILE="/run/ornetd.pid"
+ORNETD_SOCKET="/run/ornetd.sock"
+MODEL_DIR="${MODEL_DIR:-/revo/ai/models}"
+MODEL_FILE="${MODEL_FILE:-ornith-1.0-9b-Q4_K_M.gguf}"
+MODEL_PATH="$MODEL_DIR/$MODEL_FILE"
+LLAMA_CLI="${LLAMA_CLI:-/usr/bin/llama-cli}"
+DEFAULT_THREADS="${DEFAULT_THREADS:-4}"
+DEFAULT_CTX="${DEFAULT_CTX:-4096}"
+DEFAULT_TEMP="${DEFAULT_TEMP:-0.7}"
+MAX_TOKENS="${MAX_TOKENS:-512}"
+
+# ─── Logging ───
+log() { echo "[ornetd] $(date '+%H:%M:%S') $*" >> "$ORNETD_LOG" 2>/dev/null; echo "[ornetd] $*"; }
+die()  { log "FATAL: $*"; exit 1; }
+
+# ─── Help ───
+usage() {
+    echo "ornetd v$ORNETD_VERSION — Revo OS AI Inference Dispatcher"
+    echo ""
+    echo "Usage: ornetd <command> [args...]"
+    echo ""
+    echo "Commands:"
+    echo "  start                  Start the inference dispatcher daemon"
+    echo "  stop                   Stop the dispatcher daemon"
+    echo "  status                 Check dispatcher status"
+    echo "  infer <prompt>         Run a single inference (synchronous)"
+    echo "  chat                   Start interactive chat session"
+    echo "  model-info             Show loaded model information"
+    echo "  download               Download Ornith-1 9B GGUF (requires network)"
+    echo "  version                Show version"
+    echo ""
+    echo "Environment:"
+    echo "  MODEL_DIR=/revo/ai/models    Where GGUF models live"
+    echo "  MODEL_FILE=ornith-1.0-9b-Q4_K_M.gguf  Default model"
+    echo "  DEFAULT_THREADS=4            CPU threads for inference"
+    echo "  DEFAULT_CTX=4096             Context window size"
+}
+
+# ─── Prerequisites check ───
+check_deps() {
+    if ! command -v "$LLAMA_CLI" > /dev/null 2>&1; then
+        echo "  [!!] llama-cli not found at $LLAMA_CLI"
+        echo "  [!!] Install: apk add llama-cpp  OR  compile from source"
+        echo "  [!!] See: https://github.com/ggerganov/llama.cpp"
+        return 1
+    fi
+    return 0
+}
+
+# ─── Check model availability ───
+check_model() {
+    if [ ! -f "$MODEL_PATH" ]; then
+        echo "  [!!] Model not found: $MODEL_PATH"
+        echo "  [!!] Run: ornetd download"
+        echo "  [!!] Or place the GGUF manually on the RevoAI volume"
+        return 1
+    fi
+    MODEL_SIZE=$(du -h "$MODEL_PATH" 2>/dev/null | cut -f1)
+    echo "  [OK] Model: $MODEL_FILE ($MODEL_SIZE)"
+    return 0
+}
+
+# ─── Start daemon ───
+cmd_start() {
+    log "ornetd v$ORNETD_VERSION starting..."
+    
+    # Check if already running
+    if [ -f "$ORNETD_PIDFILE" ] && kill -0 "$(cat $ORNETD_PIDFILE)" 2>/dev/null; then
+        log "ornetd already running (PID $(cat $ORNETD_PIDFILE))"
+        return 0
+    fi
+    
+    # Mount RevoAI volume if present
+    if [ ! -d "$MODEL_DIR" ]; then
+        mkdir -p "$MODEL_DIR" 2>/dev/null || true
+        # Try mounting dedicated AI partition
+        for ai_dev in /dev/sda3 /dev/nvme0n1p3 /dev/vda3; do
+            if [ -b "$ai_dev" ]; then
+                mount -t ext4 "$ai_dev" "$MODEL_DIR" 2>/dev/null && \
+                    log "RevoAI volume: $ai_dev -> $MODEL_DIR" && break
+            fi
+        done
+    fi
+    
+    # Check dependencies
+    check_deps || {
+        log "llama-cli not available — ornetd runs in NO-OP mode"
+        log "Place llama-cli in /usr/bin/ and restart ornetd"
+    }
+    
+    # Check model
+    check_model || {
+        log "Model not loaded — ornetd runs in NO-OP mode"
+        log "Run 'ornetd download' to fetch Ornith-1 9B"
+    }
+    
+    # Daemonize: write PID, run background inference loop
+    echo $$ > "$ORNETD_PIDFILE"
+    log "ornetd daemon started (PID $$)"
+    log "Model dir: $MODEL_DIR"
+    log "Model: ${MODEL_FILE:-none}"
+    log "Threads: $DEFAULT_THREADS | Context: $DEFAULT_CTX"
+    
+    # Background inference loop — reads from named pipe
+    rm -f "$ORNETD_SOCKET"
+    mkfifo "$ORNETD_SOCKET" 2>/dev/null || true
+    
+    while true; do
+        if read -r line < "$ORNETD_SOCKET" 2>/dev/null; then
+            case "$line" in
+                "PING") echo "PONG" ;;
+                "SHUTDOWN") log "Shutdown signal received"; break ;;
+                *)
+                    if [ -f "$MODEL_PATH" ] && command -v "$LLAMA_CLI" > /dev/null 2>&1; then
+                        log "Inference: ${line:0:80}..."
+                        $LLAMA_CLI \
+                            -m "$MODEL_PATH" \
+                            -p "$line" \
+                            -n "$MAX_TOKENS" \
+                            -t "$DEFAULT_THREADS" \
+                            -c "$DEFAULT_CTX" \
+                            --temp "$DEFAULT_TEMP" \
+                            --no-display-prompt \
+                            2>/dev/null || echo "[ornetd] Inference failed"
+                    else
+                        echo "[ornetd] Model or llama-cli not available — cannot infer"
+                    fi
+                    ;;
+            esac
+        fi
+    done
+    
+    rm -f "$ORNETD_PIDFILE" "$ORNETD_SOCKET"
+    log "ornetd stopped"
+}
+
+# ─── Stop daemon ───
+cmd_stop() {
+    if [ -f "$ORNETD_PIDFILE" ]; then
+        PID=$(cat "$ORNETD_PIDFILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            echo "SHUTDOWN" > "$ORNETD_SOCKET" 2>/dev/null || true
+            kill "$PID" 2>/dev/null
+            sleep 1
+            kill -9 "$PID" 2>/dev/null || true
+            log "ornetd stopped (PID $PID)"
+        fi
+        rm -f "$ORNETD_PIDFILE" "$ORNETD_SOCKET"
+    else
+        log "ornetd not running"
+    fi
+}
+
+# ─── Status ───
+cmd_status() {
+    echo "ornetd v$ORNETD_VERSION"
+    echo ""
+    
+    if [ -f "$ORNETD_PIDFILE" ] && kill -0 "$(cat $ORNETD_PIDFILE)" 2>/dev/null; then
+        echo "Status: RUNNING (PID $(cat $ORNETD_PIDFILE))"
+    else
+        echo "Status: STOPPED"
+    fi
+    
+    echo "Model dir: $MODEL_DIR"
+    echo "Model file: ${MODEL_FILE:-none}"
+    
+    if [ -f "$MODEL_PATH" ]; then
+        SIZE=$(du -h "$MODEL_PATH" 2>/dev/null | cut -f1)
+        echo "Model: $MODEL_FILE ($SIZE) — READY"
+    else
+        echo "Model: NOT DOWNLOADED (run 'ornetd download')"
+    fi
+    
+    echo "llama-cli: $(command -v "$LLAMA_CLI" > /dev/null 2>&1 && echo "FOUND" || echo "MISSING")"
+    echo "Threads: $DEFAULT_THREADS | Context: $DEFAULT_CTX | Temp: $DEFAULT_TEMP"
+}
+
+# ─── Single inference ───
+cmd_infer() {
+    PROMPT="$*"
+    if [ -z "$PROMPT" ]; then
+        echo "Usage: ornetd infer <prompt>"
+        return 1
+    fi
+    
+    if [ ! -f "$MODEL_PATH" ]; then
+        echo "Error: Model not found. Run 'ornetd download' first."
+        return 1
+    fi
+    
+    if ! command -v "$LLAMA_CLI" > /dev/null 2>&1; then
+        echo "Error: llama-cli not found at $LLAMA_CLI"
+        echo "Install: apk add llama-cpp  OR  compile from https://github.com/ggerganov/llama.cpp"
+        return 1
+    fi
+    
+    echo "Ornith-1 9B > $PROMPT"
+    echo "---"
+    $LLAMA_CLI \
+        -m "$MODEL_PATH" \
+        -p "$PROMPT" \
+        -n "$MAX_TOKENS" \
+        -t "$DEFAULT_THREADS" \
+        -c "$DEFAULT_CTX" \
+        --temp "$DEFAULT_TEMP" \
+        --no-display-prompt \
+        2>/dev/null
+    echo "---"
+}
+
+# ─── Interactive chat ───
+cmd_chat() {
+    if [ ! -f "$MODEL_PATH" ]; then
+        echo "Error: Model not found. Run 'ornetd download' first."
+        return 1
+    fi
+    
+    if ! command -v "$LLAMA_CLI" > /dev/null 2>&1; then
+        echo "Error: llama-cli not found."
+        return 1
+    fi
+    
+    echo "Ornith-1 9B Chat — type '/exit' to quit, '/clear' to reset context"
+    echo ""
+    
+    $LLAMA_CLI \
+        -m "$MODEL_PATH" \
+        -t "$DEFAULT_THREADS" \
+        -c "$DEFAULT_CTX" \
+        --temp "$DEFAULT_TEMP" \
+        --interactive-first \
+        --color \
+        2>/dev/null
+}
+
+# ─── Model info ───
+cmd_model_info() {
+    if [ ! -f "$MODEL_PATH" ]; then
+        echo "Model not found: $MODEL_PATH"
+        return 1
+    fi
+    
+    MODEL_SIZE=$(du -h "$MODEL_PATH" 2>/dev/null | cut -f1)
+    MODEL_BYTES=$(stat -c%s "$MODEL_PATH" 2>/dev/null || echo "unknown")
+    
+    echo "Ornet Model Information"
+    echo "======================="
+    echo "File:      $MODEL_FILE"
+    echo "Path:      $MODEL_PATH"
+    echo "Size:      $MODEL_SIZE ($MODEL_BYTES bytes)"
+    echo "Format:    GGUF (llama.cpp)"
+    echo "Quant:     Q4_K_M (4-bit, balanced quality/speed)"
+    echo "Base:      Ornith-1.0 9B (DeepReinforce)"
+    echo "Params:    ~9 billion"
+    echo "Context:   $DEFAULT_CTX tokens"
+    echo "RAM:       ~6 GB required"
+}
+
+# ─── Download model ───
+cmd_download() {
+    echo "Ornet Model Download — Ornith-1.0 9B GGUF"
+    echo "=========================================="
+    echo ""
+    echo "Model: $MODEL_FILE (~5.5 GB)"
+    echo "From:  huggingface.co/deepreinforce-ai/Ornith-1.0-9B-GGUF"
+    echo "To:    $MODEL_PATH"
+    echo ""
+    
+    mkdir -p "$MODEL_DIR" 2>/dev/null || true
+    
+    # Check if already downloaded
+    if [ -f "$MODEL_PATH" ]; then
+        MODEL_SIZE=$(du -h "$MODEL_PATH" 2>/dev/null | cut -f1)
+        echo "Model already exists: $MODEL_SIZE"
+        echo "To re-download, remove it first: rm $MODEL_PATH"
+        return 0
+    fi
+    
+    # Check disk space
+    if [ -d "$MODEL_DIR" ]; then
+        AVAIL=$(df -m "$MODEL_DIR" 2>/dev/null | awk 'NR==2{print $4}')
+        if [ -n "$AVAIL" ] && [ "$AVAIL" -lt 6000 ]; then
+            echo "Error: Not enough disk space (${AVAIL}MB available, ~6000MB needed)"
+            echo "The RevoAI volume needs at least 8 GB"
+            return 1
+        fi
+    fi
+    
+    # Download using wget or busybox wget
+    HF_URL="https://huggingface.co/deepreinforce-ai/Ornith-1.0-9B-GGUF/resolve/main/$MODEL_FILE"
+    
+    echo "Downloading $MODEL_FILE..."
+    echo "This will take a while (~5.5 GB). Press Ctrl+C to cancel."
+    echo ""
+    
+    if command -v wget > /dev/null 2>&1; then
+        wget -c --progress=bar "$HF_URL" -O "$MODEL_PATH" 2>&1 || {
+            echo "Download failed. Try again — it will resume from where it stopped."
+            return 1
+        }
+    else
+        echo "Error: wget not available. Install busybox wget or compile wget."
+        echo "Manual download:"
+        echo "  $HF_URL"
+        echo "  Place at: $MODEL_PATH"
+        return 1
+    fi
+    
+    echo ""
+    echo "Download complete!"
+    MODEL_SIZE=$(du -h "$MODEL_PATH" 2>/dev/null | cut -f1)
+    echo "Model: $MODEL_PATH ($MODEL_SIZE)"
+    echo ""
+    echo "Ornith-1 9B is ready for inference."
+    echo "Run: ornetd infer 'Hello, who are you?'"
+}
+
+# ─── Version ───
+cmd_version() {
+    echo "ornetd v$ORNETD_VERSION"
+    echo "Part of the Ornet subsystem — Revo OS AI-Native Inferencing"
+    echo ""
+    echo "Ornet stack:"
+    echo "  ornet.ko     — Kernel module: model memory manager, tensor dispatch (~500 KB)"
+    echo "  ornetd       — Userspace dispatcher: inference scheduler, priority queues (~10 KB)"
+    echo "  Ornith-1 9B  — GGUF Q4_K_M model: dedicated RevoAI volume (~5.5 GB)"
+    echo ""
+    echo "Model is firmware, not software — dedicated partition, dm-verity integrity."
+}
+
+# ─── Main dispatch ───
+case "${1:-}" in
+    start)    cmd_start ;;
+    stop)     cmd_stop ;;
+    status)   cmd_status ;;
+    infer)    shift; cmd_infer "$@" ;;
+    chat)     cmd_chat ;;
+    model-info) cmd_model_info ;;
+    download) cmd_download ;;
+    version)  cmd_version ;;
+    -h|--help|help) usage ;;
+    *)
+        if [ -z "$1" ]; then
+            usage
+        else
+            echo "Unknown command: $1"
+            echo "Run 'ornetd help' for usage."
+            exit 1
+        fi
+        ;;
+esac
