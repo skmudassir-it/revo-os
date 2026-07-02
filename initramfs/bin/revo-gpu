@@ -1,0 +1,336 @@
+#!/bin/busybox sh
+# Revo OS v1.6.0 — GPU Detection & Acceleration Script
+#
+# Detects installed GPUs (NVIDIA, AMD, Intel), checks VRAM, driver status,
+# and reports acceleration capabilities for Ornet AI inference.
+#
+# GPU backends supported:
+#   - CUDA    (NVIDIA) — via nvidia.ko + libcuda
+#   - Vulkan  (cross-vendor) — via mesa/vulkan-icd
+#   - ROCm    (AMD) — via amdgpu.ko + rocm
+#   - oneAPI  (Intel) — via i915.ko + compute-runtime
+#
+# Usage: /usr/bin/revo-gpu [detect|info|bench|list-models]
+
+GPU_LOG="/var/log/revo-gpu.log"
+log() { echo "[gpu] $*" >> "$GPU_LOG" 2>/dev/null; echo "[gpu] $*"; }
+
+# ─── PCI Device Detection ───
+gpu_detect_pci() {
+    log "Scanning PCI bus for GPUs..."
+    
+    local gpu_count=0
+    
+    # Check lspci if available
+    if command -v lspci > /dev/null 2>&1; then
+        lspci | grep -iE "VGA|3D|Display" 2>/dev/null | while read -r line; do
+            gpu_count=$((gpu_count + 1))
+            log "  GPU $gpu_count: $line"
+            
+            case "$line" in
+                *NVIDIA*) echo "NVIDIA" > /tmp/gpu_type_$gpu_count ;;
+                *AMD*|*ATI*) echo "AMD" > /tmp/gpu_type_$gpu_count ;;
+                *Intel*) echo "INTEL" > /tmp/gpu_type_$gpu_count ;;
+                *) echo "UNKNOWN" > /tmp/gpu_type_$gpu_count ;;
+            esac
+        done
+    else
+        # Fallback: check sysfs
+        for pci_dev in /sys/bus/pci/devices/*/; do
+            local class=$(cat "$pci_dev/class" 2>/dev/null)
+            # 0x030000 = VGA, 0x030200 = 3D
+            case "$class" in
+                0x030000|0x030200)
+                    gpu_count=$((gpu_count + 1))
+                    local vendor=$(cat "$pci_dev/vendor" 2>/dev/null)
+                    local device=$(cat "$pci_dev/device" 2>/dev/null)
+                    case "$vendor" in
+                        0x10de) echo "NVIDIA" > /tmp/gpu_type_$gpu_count ;;
+                        0x1002) echo "AMD" > /tmp/gpu_type_$gpu_count ;;
+                        0x8086) echo "INTEL" > /tmp/gpu_type_$gpu_count ;;
+                    esac
+                    log "  GPU $gpu_count: vendor=$vendor device=$device"
+                    ;;
+            esac
+        done
+    fi
+    
+    echo "$gpu_count" > /tmp/gpu_count
+    log "Detected $gpu_count GPU(s)"
+}
+
+# ─── NVIDIA Detection ───
+gpu_check_nvidia() {
+    log "Checking NVIDIA GPU..."
+    
+    # Check kernel module
+    if [ -d /sys/module/nvidia ]; then
+        log "  nvidia.ko: loaded"
+    elif [ -f /boot/modules/nvidia.ko.gz ]; then
+        log "  nvidia.ko: available (not loaded)"
+    else
+        log "  nvidia.ko: not found — install NVIDIA driver"
+    fi
+    
+    # Check nvidia-smi
+    if command -v nvidia-smi > /dev/null 2>&1; then
+        local vram=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | head -1)
+        local cuda_ver=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
+        log "  VRAM: ${vram:-unknown}"
+        log "  CUDA: ${cuda_ver:-unknown}"
+        echo "$vram" > /tmp/gpu_vram
+        echo "cuda" > /tmp/gpu_backend
+        echo "READY" > /tmp/gpu_status
+        return 0
+    fi
+    
+    # Check /dev/nvidia*
+    if [ -c /dev/nvidia0 ]; then
+        log "  /dev/nvidia0: present"
+        echo "cuda" > /tmp/gpu_backend
+        echo "DRIVER_ONLY" > /tmp/gpu_status
+        return 0
+    fi
+    
+    echo "none" > /tmp/gpu_backend
+    echo "NOT_FOUND" > /tmp/gpu_status
+    return 1
+}
+
+# ─── AMD Detection ───
+gpu_check_amd() {
+    log "Checking AMD GPU..."
+    
+    if [ -d /sys/module/amdgpu ]; then
+        log "  amdgpu.ko: loaded"
+    elif [ -f /boot/modules/amdgpu.ko.gz ]; then
+        log "  amdgpu.ko: available (not loaded)"
+    fi
+    
+    # Check ROCm
+    if command -v rocminfo > /dev/null 2>&1; then
+        log "  ROCm: available"
+        echo "rocm" > /tmp/gpu_backend
+        echo "READY" > /tmp/gpu_status
+        return 0
+    fi
+    
+    # Check Vulkan (works on AMD too)
+    if [ -c /dev/dri/renderD128 ]; then
+        log "  /dev/dri/renderD128: present — Vulkan possible"
+        echo "vulkan" > /tmp/gpu_backend
+        echo "VULKAN_ONLY" > /tmp/gpu_status
+        return 0
+    fi
+    
+    echo "none" > /tmp/gpu_backend
+    echo "NOT_FOUND" > /tmp/gpu_status
+    return 1
+}
+
+# ─── Intel Detection ───
+gpu_check_intel() {
+    log "Checking Intel GPU..."
+    
+    if [ -d /sys/module/i915 ]; then
+        log "  i915.ko: loaded"
+        
+        # Check for compute-runtime (oneAPI)
+        if [ -c /dev/dri/renderD128 ]; then
+            log "  /dev/dri/renderD128: present"
+            echo "oneapi" > /tmp/gpu_backend
+            echo "READY" > /tmp/gpu_status
+            return 0
+        fi
+    fi
+    
+    echo "none" > /tmp/gpu_backend
+    echo "NOT_FOUND" > /tmp/gpu_status
+    return 1
+}
+
+# ─── Vulkan Fallback (cross-vendor) ───
+gpu_check_vulkan() {
+    log "Checking Vulkan..."
+    
+    # Check if vulkan-loader is available
+    if [ -f /usr/lib/libvulkan.so ] || [ -f /usr/lib/libvulkan.so.1 ]; then
+        log "  libvulkan: found"
+    fi
+    
+    # Check DRM render nodes
+    for render in /dev/dri/renderD*; do
+        if [ -c "$render" ]; then
+            log "  $render: present"
+            echo "vulkan" > /tmp/gpu_backend
+            echo "READY" > /tmp/gpu_status
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
+# ─── Unified Detection ───
+gpu_detect() {
+    log "=== GPU Detection v1.6.0 ==="
+    
+    gpu_detect_pci
+    local count=$(cat /tmp/gpu_count 2>/dev/null || echo 0)
+    
+    if [ "$count" -eq 0 ]; then
+        log "No GPU detected — CPU-only inference"
+        echo "cpu" > /tmp/gpu_backend
+        echo "CPU_ONLY" > /tmp/gpu_status
+        echo "0" > /tmp/gpu_vram
+        return 0
+    fi
+    
+    # Check each GPU type in priority order
+    for i in $(seq 1 $count); do
+        local gpu_type=$(cat /tmp/gpu_type_$i 2>/dev/null)
+        log "GPU $i: $gpu_type"
+        
+        case "$gpu_type" in
+            NVIDIA) gpu_check_nvidia && return 0 ;;
+            AMD)    gpu_check_amd && return 0 ;;
+            INTEL)  gpu_check_intel && return 0 ;;
+        esac
+    done
+    
+    # Vulkan fallback for any GPU with DRM
+    gpu_check_vulkan && return 0
+    
+    # Nothing found
+    log "No GPU acceleration available — CPU-only"
+    echo "cpu" > /tmp/gpu_backend
+    echo "CPU_ONLY" > /tmp/gpu_status
+    echo "0" > /tmp/gpu_vram
+}
+
+# ─── Info Display ───
+gpu_info() {
+    echo "Revo GPU Info — v1.6.0"
+    echo "======================="
+    echo ""
+    
+    gpu_detect  # Run detection
+    
+    echo "GPU Count:  $(cat /tmp/gpu_count 2>/dev/null || echo 0)"
+    echo "Backend:    $(cat /tmp/gpu_backend 2>/dev/null || echo cpu)"
+    echo "Status:     $(cat /tmp/gpu_status 2>/dev/null || echo unknown)"
+    echo "VRAM:       $(cat /tmp/gpu_vram 2>/dev/null || echo N/A)"
+    echo ""
+    
+    echo "Acceleration modes:"
+    case "$(cat /tmp/gpu_backend 2>/dev/null)" in
+        cuda)
+            echo "  ✓ CUDA    — NVIDIA native, full tensor offload"
+            echo "  ✓ Vulkan  — Cross-vendor compat layer"
+            echo "  ✓ CPU     — Fallback, always available"
+            ;;
+        rocm)
+            echo "  ✓ ROCm    — AMD native, full tensor offload"
+            echo "  ✓ Vulkan  — Cross-vendor compat layer"
+            echo "  ✓ CPU     — Fallback, always available"
+            ;;
+        oneapi)
+            echo "  ✓ oneAPI  — Intel native, integrated GPU"
+            echo "  ✓ CPU     — Fallback, always available"
+            ;;
+        vulkan)
+            echo "  ✓ Vulkan  — Cross-vendor (limited offload)"
+            echo "  ✓ CPU     — Fallback, always available"
+            ;;
+        *)
+            echo "  ✓ CPU     — Software-only inference"
+            echo "  ! GPU     — No GPU detected"
+            ;;
+    esac
+    
+    echo ""
+    echo "Ornet config:"
+    echo "  ornetd start --gpu cuda    # Force CUDA backend"
+    echo "  ornetd start --gpu vulkan  # Force Vulkan backend"
+    echo "  ornetd start --cpu-only    # CPU inference only"
+    echo "  ornetd start --split 70/30 # 70% GPU, 30% CPU tensor offload"
+}
+
+# ─── VRAM-Aware Model Selection ───
+gpu_bench() {
+    echo "GPU Inference Benchmark"
+    echo "======================="
+    
+    gpu_detect
+    
+    local vram_mb=$(cat /tmp/gpu_vram 2>/dev/null | sed 's/ MiB//' | sed 's/ MB//')
+    [ -z "$vram_mb" ] && vram_mb=0
+    
+    echo ""
+    echo "VRAM available: ${vram_mb} MB"
+    echo ""
+    echo "Recommended models for your GPU:"
+    echo ""
+    
+    if [ "$vram_mb" -ge 24000 ]; then
+        echo "  Ornith-1 35B Q4_K_M  (~20 GB) — ✓ fits fully in VRAM"
+        echo "  Ornith-1 9B Q8_0     (~9 GB)  — ✓ fits fully in VRAM"
+    elif [ "$vram_mb" -ge 12000 ]; then
+        echo "  Ornith-1 9B Q8_0     (~9 GB)  — ✓ fits fully in VRAM"
+        echo "  Ornith-1 9B Q6_K     (~7 GB)  — ✓ fits fully in VRAM"
+    elif [ "$vram_mb" -ge 8000 ]; then
+        echo "  Ornith-1 9B Q5_K_M   (~6 GB)  — ✓ fits fully in VRAM"
+        echo "  Ornith-1 9B Q4_K_M   (~5.5 GB)— ✓ fits fully in VRAM"
+    elif [ "$vram_mb" -ge 6000 ]; then
+        echo "  Ornith-1 9B Q4_K_M   (~5.5 GB)— ✓ fits fully in VRAM"
+        echo "  Ornith-1 9B Q4_0     (~5 GB)  — ✓ fits fully in VRAM"
+    elif [ "$vram_mb" -ge 4000 ]; then
+        echo "  Ornith-1 9B Q4_0     (~5 GB)  — ⚠ split CPU/GPU offload"
+        echo "  Ornith-1 9B Q3_K_M   (~4 GB)  — ✓ fits fully in VRAM"
+    else
+        echo "  Ornith-1 9B Q4_K_M   (~5.5 GB)— CPU-only (system RAM)"
+        echo "  Consider adding a GPU for faster inference"
+    fi
+}
+
+# ─── Multi-Model Discovery ───
+gpu_list_models() {
+    echo "Available Models — RevoAI Volume"
+    echo "================================"
+    echo ""
+    
+    local model_dir="${MODEL_DIR:-/revo/ai/models}"
+    local found=0
+    
+    for model in "$model_dir"/*.gguf; do
+        [ -f "$model" ] || continue
+        found=1
+        local name=$(basename "$model")
+        local size=$(du -h "$model" | cut -f1)
+        local active=""
+        [ "$(readlink /revo/ai/models/active.gguf 2>/dev/null)" = "$model" ] && active=" [ACTIVE]"
+        echo "  $name  $size$active"
+    done
+    
+    [ "$found" -eq 0 ] && echo "  No models found in $model_dir"
+    echo ""
+    echo "Switch active model: ornetd model switch <name>"
+    echo "Download more:       ornetd download --model <name>"
+}
+
+# ─── Main ───
+case "${1:-detect}" in
+    detect)      gpu_detect ;;
+    info)        gpu_info ;;
+    bench)       gpu_bench ;;
+    list-models) gpu_list_models ;;
+    *)
+        echo "revo-gpu v1.6.0 — GPU Detection & Acceleration"
+        echo ""
+        echo "Usage: revo-gpu <command>"
+        echo "  detect       Detect GPUs silently (sets /tmp/gpu_*)"
+        echo "  info         Full GPU info + acceleration modes"
+        echo "  bench        VRAM-aware model recommendations"
+        echo "  list-models  List all models on RevoAI volume"
+        ;;
+esac

@@ -1,7 +1,7 @@
 #!/bin/busybox sh
-# Revo OS v1.5.0 — init script
-# Features: dm-verity, CA bundle, containerd, Ornet AI, revo-fs, remote access
-# v1.5: SSH (Dropbear), WireGuard, iptables firewall, static IP, service supervision
+# Revo OS v1.6.0 — init script
+# Features: dm-verity, CA bundle, containerd, Ornet AI, revo-fs, remote access, GPU
+# v1.6: GPU acceleration (CUDA/Vulkan/ROCm), multi-model hot-swap, tensor offload
 
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -15,8 +15,8 @@ mount -t vfat /dev/vda1 /boot 2>/dev/null || true
 
 echo ""
 echo "  ╔══════════════════════════════════════╗"
-echo "  ║        🌀 REVO OS v1.5.0            ║"
-echo "  ║  Remote Access — SSH · VPN · Firewall║"
+echo "  ║        🌀 REVO OS v1.6.0            ║"
+echo "  ║  GPU Accelerated — CUDA · Vulkan · AI║"
 echo "  ╚══════════════════════════════════════╝"
 echo ""
 echo "  Kernel : $(uname -r)"
@@ -353,7 +353,7 @@ fi
 
 echo ""
 echo "  ┌──────────────────────────────────────────────────────────┐"
-echo "  │  Revo v1.5 — SSH · VPN · Firewall · Containers · AI.    │"
+echo "  │  Revo v1.6 — GPU · SSH · VPN · Containers · AI.         │"
 if [ "$SSH_OK" -eq 1 ]; then
 echo "  │  ssh root@<ip> -p $SSH_PORT                              │"
 fi
@@ -364,5 +364,47 @@ echo "  │  revocker run alpine:latest sh                           │"
 echo "  │  Type 'help' for commands.                               │"
 echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
+
+# ─── v1.6.0: GPU Detection & Setup ───
+GPU_OK=0
+if [ -x /bin/revo-gpu ]; then
+    echo "  [--] GPU: Running detection..."
+    /bin/revo-gpu detect 2>/dev/null
+    
+    GPU_BACKEND=$(cat /tmp/gpu_backend 2>/dev/null || echo "cpu")
+    GPU_STATUS=$(cat /tmp/gpu_status 2>/dev/null || echo "CPU_ONLY")
+    GPU_VRAM=$(cat /tmp/gpu_vram 2>/dev/null || echo "0")
+    
+    case "$GPU_STATUS" in
+        READY|DRIVER_ONLY|VULKAN_ONLY)
+            echo "  [OK] GPU: $GPU_BACKEND ($GPU_STATUS${GPU_VRAM:+ — $GPU_VRAM})"
+            GPU_OK=1
+            
+            # Load GPU libraries from /revo/gpu/
+            if [ -d /revo/gpu ]; then
+                for libdir in /revo/gpu/*/; do
+                    [ -d "$libdir" ] && export LD_LIBRARY_PATH="$libdir:$LD_LIBRARY_PATH"
+                done
+                echo "  [OK] GPU libraries: /revo/gpu/ → LD_LIBRARY_PATH"
+            fi
+            
+            # Load NVIDIA kernel modules if present
+            for gpu_mod in nvidia nvidia_uvm nvidia_drm; do
+                if [ -f "/boot/modules/${gpu_mod}.ko.gz" ] && [ ! -d "/sys/module/$gpu_mod" ]; then
+                    insmod "/boot/modules/${gpu_mod}.ko.gz" 2>/dev/null && \
+                        echo "  [OK] $gpu_mod.ko: loaded" || true
+                fi
+            done
+            ;;
+        CPU_ONLY)
+            echo "  [--] GPU: not detected — CPU-only inference"
+            ;;
+        *)
+            echo "  [--] GPU: $GPU_STATUS"
+            ;;
+    esac
+else
+    echo "  [--] GPU: revo-gpu not found — CPU-only mode"
+fi
 
 exec /bin/sh
