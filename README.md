@@ -202,15 +202,52 @@ See [`docs/ornet-blueprint.md`](docs/ornet-blueprint.md) for the full kernel mod
 
 ## Future Updates
 
-| # | Feature | Description |
-|---|---|---|
-| 1 | **revo-fs package streaming** | FUSE overlay mesh filesystem — BitTorrent-backed on-demand packages. Any Ubuntu package, never pre-installed |
-| 2 | **Secure remote access** | Dropbear SSH server (~200 KB), WireGuard kernel module, IPv6 dual-stack |
-| 3 | **GPU acceleration** | CUDA/Vulkan passthrough for Ornet inference. Multi-model hot-swap. CPU/GPU tensor offload |
-| 4 | **Immutable updates** | Cryptographic signing of core image. A/B partition updates with automatic rollback. Binary delta updates |
-| 5 | **Observability dashboard** | Web-based management console. Structured JSON logging. Prometheus metrics endpoint |
-| 6 | **Multi-architecture** | ARM64 (aarch64) port — Raspberry Pi 5, AWS Graviton. RISC-V preview |
-| 7 | **Multi-node orchestration** | Revo Mesh peer discovery. Distributed Ornet — split inference across nodes. Lightweight Kubernetes shim |
+| # | Version | Feature | Covers |
+|---|---|---|---|
+| 1 | **v1.7** | **Production Hardening** | Persistent logging, NTP time sync, non-root users, cron daemon, DNS caching, fstab auto-mount |
+| 2 | **v1.8** | **Resource Management** | Ulimits, cgroups v2 quotas, swap/OOM tuning, sysctl kernel hardening, process limits |
+| 3 | **v1.9** | **Immutable Core** | A/B partition updates, delta patches, LUKS disk encryption, backup/restore snapshots |
+| 4 | **v1.10** | **Observability** | Web dashboard, Prometheus metrics, health checks, Let's Encrypt TLS, audit logging |
+| 5 | **v1.11** | **Multi-Arch + Edge** | ARM64 (RPi 5, Graviton), RISC-V, K8s shim, email alerts, USB gadget mode |
+
+### What Each Release Covers
+
+**v1.7 — Production Hardening**
+- Persistent system logs → `/revo/var/log/` (survives reboot)
+- NTP time sync via busybox `ntpd` (critical for TLS, logs, cron)
+- Non-root user creation + `sudo` (no more root SSH)
+- Cron daemon via busybox `crond` (backups, log rotation, health checks)
+- DNS caching via `dnsmasq` or `busybox dnsd`
+- `/etc/fstab` support for auto-mounting volumes at boot
+
+**v1.8 — Resource Management**
+- Ulimits: max open files, max processes per user
+- cgroups v2 resource quotas for non-container services
+- Swap support + OOM killer tuning
+- Sysctl hardening: ASLR, SYN cookies, BPF restrictions
+- Memory/CPU limits for ornetd and revo-fs daemons
+
+**v1.9 — Immutable Core**
+- A/B partition scheme with atomic updates
+- Binary delta patches (no full re-download)
+- Automatic rollback on boot failure
+- LUKS/dm-crypt for data-at-rest encryption
+- Snapshot-based backup/restore for `/revo` volume
+
+**v1.10 — Observability**
+- Web-based management dashboard (port 80)
+- Prometheus metrics endpoint (`:9090/metrics`)
+- Health check endpoint (`/health` → JSON status)
+- Let's Encrypt ACME client for TLS certificates
+- Audit logging: who logged in, what commands ran
+- Real-time resource monitoring (CPU, RAM, disk, GPU)
+
+**v1.11 — Multi-Arch + Edge**
+- ARM64 (aarch64) port: Raspberry Pi 5, AWS Graviton
+- RISC-V preview: VisionFive 2, QEMU
+- Lightweight Kubernetes shim (pods without kubelet)
+- SMTP email alerts for disk-full, service-down
+- USB gadget mode: boot as Ethernet/RNDIS device
 
 ---
 
